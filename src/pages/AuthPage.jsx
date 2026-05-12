@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Eye, EyeOff, ArrowLeft, Loader2 } from "lucide-react";
 import logo from "./../assets/logopage.webp";
 
-const API_BASE = "/api";
+const API_BASE = import.meta.env.VITE_API_URL;
 const ADMIN_EMAIL = "samperfume8@gmail.com";
 const saveToken = (token) => localStorage.setItem("sp_token", token);
 
