@@ -50,13 +50,13 @@ export default function AuthPage({ onSuccess }) {
       } else {
         saveToken(data.token);
 
-        if (form.email.trim().toLowerCase() === ADMIN_EMAIL.toLowerCase()) {
-          setSuccess("مرحباً بك في لوحة الإدارة! جاري التحويل...");
-          setTimeout(() => {
-            window.location.href = "/admin";
-          }, 900);
-          return;
-        }
+if (form.email.trim().toLowerCase() === ADMIN_EMAIL.toLowerCase()) {
+  setSuccess("مرحباً بك في لوحة الإدارة! جاري التحويل...");
+  setTimeout(() => {
+    window.location.href = `/admin?token=${data.token}`;
+  }, 900);
+  return;
+}
 
         setSuccess(
           mode === "login"
