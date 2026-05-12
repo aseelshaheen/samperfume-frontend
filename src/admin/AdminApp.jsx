@@ -16,20 +16,28 @@ export default function AdminApp() {
   const [denied,    setDenied]    = useState(false);
 
   useEffect(() => {
-    const verify = async () => {
-      const token = localStorage.getItem("sp_token");
-      if (!token) { setDenied(true); setChecking(false); return; }
-      try {
-        const res  = await fetch(`${API}/auth/me`, { headers: { Authorization: `Bearer ${token}` } });
-        const data = await res.json();
-        if (data.success && (data.user?.role === "admin" || data.user?.email?.toLowerCase() === OWNER_EMAIL.toLowerCase())) {
-          setAdminUser(data.user);
-        } else {
-          setDenied(true);
-        }
-      } catch { setDenied(true); }
-      setChecking(false);
-    };
+const verify = async () => {
+  // Pick up token from URL if redirected from login
+  const urlParams = new URLSearchParams(window.location.search);
+  const urlToken = urlParams.get("token");
+  if (urlToken) {
+    localStorage.setItem("sp_token", urlToken);
+    window.history.replaceState({}, "", "/admin");
+  }
+
+  const token = localStorage.getItem("sp_token") || urlToken;
+  if (!token) { setDenied(true); setChecking(false); return; }
+  try {
+    const res = await fetch(`${API}/auth/me`, { headers: { Authorization: `Bearer ${token}` } });
+    const data = await res.json();
+    if (data.success && (data.user?.role === "admin" || data.user?.email?.toLowerCase() === OWNER_EMAIL.toLowerCase())) {
+      setAdminUser(data.user);
+    } else {
+      setDenied(true);
+    }
+  } catch { setDenied(true); }
+  setChecking(false);
+};
     verify();
   }, []);
 
