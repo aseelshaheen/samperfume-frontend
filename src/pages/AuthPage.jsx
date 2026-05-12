@@ -50,7 +50,6 @@ export default function AuthPage({ onSuccess }) {
       } else {
         saveToken(data.token);
 
-        // ── Auto-redirect admin email ──────────────────────────────
         if (form.email.trim().toLowerCase() === ADMIN_EMAIL.toLowerCase()) {
           setSuccess("مرحباً بك في لوحة الإدارة! جاري التحويل...");
           setTimeout(() => {
@@ -117,7 +116,6 @@ export default function AuthPage({ onSuccess }) {
           overflow:hidden;
         }
 
-        /* Container for the background image */
         .image-container { 
           position:absolute; 
           top: 0;
@@ -128,7 +126,6 @@ export default function AuthPage({ onSuccess }) {
           margin-bottom:0; 
         }
 
-        /* The full background image */
         .image-container img { 
           width:100%; 
           height:100%; 
@@ -137,23 +134,19 @@ export default function AuthPage({ onSuccess }) {
           filter:saturate(0.9); 
         }
 
-        /* * NEW: Semi-transparent dark overlay.
-         * Set z-index to 2 to sit above the image.
-         */
         .image-overlay {
           position: absolute;
           top: 0;
           left: 0;
           width: 100%;
           height: 100%;
-          background-color: rgba(0, 0, 0, 0.6); /* Adjust the 0.6 to make it more or less dark */
+          background-color: rgba(0, 0, 0, 0.6);
           z-index: 2;
         }
 
-        /* Content layer that sits over the overlay and image */
         .auth-visual-content { 
           position:relative; 
-          z-index:3; /* Sit above the overlay layer */
+          z-index:3;
           text-align:center; 
           color:white; 
           padding: 3rem; 
@@ -165,18 +158,16 @@ export default function AuthPage({ onSuccess }) {
           height: 100%; 
         }
 
-        /* Tagline color set to full white for better contrast */
         .visual-tagline { 
           font-size:0.75rem; 
           letter-spacing:0.26em; 
           text-transform:uppercase; 
-          color:#ffffff; /* Pure white contrast */
+          color:#ffffff;
           font-weight:600; 
           display:block; 
           margin-bottom: 2rem; 
         }
 
-        /* Glow orbs preserved */
         .orb { 
           position:absolute; 
           border-radius:50%; 
@@ -188,7 +179,6 @@ export default function AuthPage({ onSuccess }) {
         .orb-1 { width:320px; height:320px; background:var(--bob); top:-80px; left:-80px; }
         .orb-2 { width:200px; height:200px; background:#8b5e3c; bottom:120px; right:-40px; }
 
-        /* Form panel styles unchanged */
         .auth-form-panel { display:flex; align-items:center; justify-content:center; padding:2rem; background:var(--surface); }
         .auth-card { width:100%; max-width:420px; background:white; border:1px solid var(--border); border-radius:4px; padding:2.8rem 2.4rem; box-shadow:0 4px 40px rgba(0,0,0,0.06); }
         .auth-tabs { display:grid; grid-template-columns:1fr 1fr; background:var(--surface); border-radius:3px; padding:4px; margin-bottom:2.2rem; }
@@ -224,10 +214,7 @@ export default function AuthPage({ onSuccess }) {
           <div className="image-container">
             <img loading="lazy" src={logo} alt="SamPerfume" />
           </div>
-          
-          {/* This is the new semi-transparent dark box */}
           <div className="image-overlay" />
-
           <div className="auth-visual-content">
             <span className="visual-tagline">عطور فاخرة · فلسطين</span>
           </div>
