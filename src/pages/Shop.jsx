@@ -14,7 +14,7 @@ import {
   Wind,
 } from "lucide-react";
 
-const API = import.meta.env.VITE_API_URL || "/api";;
+const API = import.meta.env.VITE_API_URL || "/api";
 
 const fetcher = async (url) => {
   const res = await fetch(url);
@@ -50,21 +50,17 @@ const SORTS = [
   { v: "rating", l: "الأعلى تقييماً" },
 ];
 
-// ── Client-side bilingual search filter ──────────────────────────────────────
-// Matches if ANY word in the query starts with the token (case-insensitive, Arabic/Latin)
 function matchesSearch(p, query) {
   if (!query.trim()) return true;
   const tokens = query.trim().toLowerCase().split(/\s+/);
-  // Fields to search: english name, arabic name, brand, slug
   const haystack = [
     p.name ?? "",
-    p.nameAr ?? p.arabicName ?? "", // support both common field names
+    p.nameAr ?? p.arabicName ?? "",
     p.brand ?? "",
     p.slug ?? "",
   ]
     .join(" ")
     .toLowerCase();
-
   return tokens.every((token) =>
     haystack.split(/\s+/).some((word) => word.startsWith(token)),
   );
@@ -91,21 +87,25 @@ function PerfumeCard({ p, section }) {
   const navigate = useNavigate();
   const [hovered, setHovered] = useState(false);
 
-  const price =
+  // FIX: always use Math.round so no float digits appear
+  const rawPrice =
     section === "full"
-      ? (p.fullBottle?.price ?? "—")
-      : (p.taqseem?.sizes?.[0]?.price ?? "—");
+      ? (p.fullBottle?.price ?? null)
+      : (p.taqseem?.sizes?.[0]?.price ?? null);
 
   const originalPrice =
     section === "full" && p.discount > 0 ? p.fullBottle?.price : null;
+
   const finalPrice =
-    section === "full" && p.discount > 0
-      ? +(p.fullBottle.price * (1 - p.discount / 100)).toFixed(0)
-      : price;
+    section === "full" && p.discount > 0 && p.fullBottle?.price != null
+      ? Math.round(p.fullBottle.price * (1 - p.discount / 100))
+      : rawPrice != null
+      ? Math.round(rawPrice)
+      : null;
+
+  const discountPct = p.discount > 0 ? Math.round(p.discount) : 0;
 
   const mainImg = p.images?.find((i) => i.isMain)?.url ?? p.images?.[0]?.url;
-
-  // Bilingual name support
   const arabicName = p.nameAr ?? p.arabicName ?? null;
   const englishName = p.name ?? null;
 
@@ -123,7 +123,8 @@ function PerfumeCard({ p, section }) {
     >
       <div className="p-card-img-wrap">
         {mainImg ? (
-          <img loading="lazy"
+          <img
+            loading="lazy"
             src={mainImg}
             alt={p.name}
             className="p-card-img"
@@ -136,8 +137,8 @@ function PerfumeCard({ p, section }) {
         )}
 
         {p.isFeatured && <span className="p-tag featured">مميز</span>}
-        {p.discount > 0 && (
-          <span className="p-tag discount">-{p.discount}%</span>
+        {discountPct > 0 && (
+          <span className="p-tag discount">-{discountPct}%</span>
         )}
 
         <div className={`p-card-actions ${hovered ? "visible" : ""}`}>
@@ -150,17 +151,11 @@ function PerfumeCard({ p, section }) {
       <div className="p-card-body">
         <span className="p-brand">{p.brand}</span>
 
-        {/* ── Bilingual name block ── */}
         <div className="p-names">
           {englishName && <h3 className="p-name p-name-ar">{englishName}</h3>}
           {arabicName && <p className="p-name-en">{arabicName}</p>}
-          {/* Fallback: if only one name field exists, show it as main */}
-          {!arabicName && englishName && (
-            <h3 className="p-name">{englishName}</h3>
-          )}
-          {arabicName && !englishName && (
-            <h3 className="p-name">{arabicName}</h3>
-          )}
+          {!arabicName && englishName && <h3 className="p-name">{englishName}</h3>}
+          {arabicName && !englishName && <h3 className="p-name">{arabicName}</h3>}
         </div>
 
         <div className="p-meta-row">
@@ -168,28 +163,24 @@ function PerfumeCard({ p, section }) {
             {p.perfumeType === "arabic" ? "عربي" : "أجنبي"}
           </span>
           <span className="p-gender">
-            {p.gender === "male"
-              ? "رجالي"
-              : p.gender === "female"
-                ? "نسائي"
-                : "مشترك"}
+            {p.gender === "male" ? "رجالي" : p.gender === "female" ? "نسائي" : "مشترك"}
           </span>
         </div>
+
         {section === "taqseem" && p.taqseem?.sizes?.length > 0 && (
           <div className="p-sizes">
             {p.taqseem.sizes.map((s) => (
-              <span key={s.ml} className="p-size-pill">
-                {s.ml}مل
-              </span>
+              <span key={s.ml} className="p-size-pill">{s.ml}مل</span>
             ))}
           </div>
         )}
+
         <div className="p-price-row">
           <span className="p-price">
-            {finalPrice !== "—" ? `₪${finalPrice}` : "—"}
+            {finalPrice != null ? `₪${finalPrice}` : "—"}
           </span>
-          {originalPrice && (
-            <span className="p-original">₪{originalPrice}</span>
+          {originalPrice != null && (
+            <span className="p-original">₪{Math.round(originalPrice)}</span>
           )}
           {section === "taqseem" && p.taqseem?.sizes?.length > 1 && (
             <span className="p-from">يبدأ من</span>
@@ -219,15 +210,9 @@ function Pills({ options, value, onChange }) {
 function Select({ options, value, onChange }) {
   return (
     <div className="sel-wrap">
-      <select
-        className="sel"
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-      >
+      <select className="sel" value={value} onChange={(e) => onChange(e.target.value)}>
         {options.map((o) => (
-          <option key={o.v} value={o.v}>
-            {o.l}
-          </option>
+          <option key={o.v} value={o.v}>{o.l}</option>
         ))}
       </select>
       <ChevronDown size={14} className="sel-arrow" />
@@ -250,15 +235,12 @@ export default function Shop({ initialSection }) {
   const [sort, setSort] = useState("newest");
   const [showFilters, setShowFilters] = useState(false);
   const [visibleCount, setVisibleCount] = useState(15);
-  // initialSection prop comes from the navbar mobile links
   const [activeSection, setActiveSection] = useState(initialSection ?? "full");
 
-  // Sync if prop changes (e.g. navigating from mobile nav)
   useEffect(() => {
     if (initialSection) setActiveSection(initialSection);
   }, [initialSection]);
 
-  // Also read ?section= query param as a fallback
   const location = useLocation();
   useEffect(() => {
     const params = new URLSearchParams(location.search);
@@ -282,8 +264,6 @@ export default function Shop({ initialSection }) {
     setError(null);
     try {
       const params = new URLSearchParams();
-      // Note: we send search to backend too for index-assisted filtering,
-      // but we also do client-side bilingual filtering below
       if (brand) params.set("brand", brand);
       if (type) params.set("perfumeType", type);
       if (gender) params.set("gender", gender);
@@ -299,44 +279,32 @@ export default function Shop({ initialSection }) {
     }
   }, [brand, type, gender, family, sort]);
 
-  useEffect(() => {
-    fetchPerfumes();
-  }, [fetchPerfumes]);
+  useEffect(() => { fetchPerfumes(); }, [fetchPerfumes]);
 
-  // Client-side bilingual search applied after fetch
   const filteredPerfumes = debouncedSearch
     ? perfumes.filter((p) => matchesSearch(p, debouncedSearch))
     : perfumes;
 
-  const fullBottles = filteredPerfumes.filter(
-    (p) => p.availability === "full_only" || p.availability === "both",
-  );
-  const taqseemBottles = filteredPerfumes.filter(
-    (p) => p.availability === "taqseem_only" || p.availability === "both",
-  );
+  const fullBottles    = filteredPerfumes.filter((p) => p.availability === "full_only" || p.availability === "both");
+  const taqseemBottles = filteredPerfumes.filter((p) => p.availability === "taqseem_only" || p.availability === "both");
 
   const clearFilters = () => {
-    setSearch("");
-    setBrand("");
-    setType("");
-    setGender("");
-    setFamily("");
-    setSort("newest");
-    setVisibleCount(15);
+    setSearch(""); setBrand(""); setType(""); setGender(""); setFamily("");
+    setSort("newest"); setVisibleCount(15);
   };
   const hasActiveFilters = search || brand || type || gender || family;
-  const displayed = activeSection === "full" ? fullBottles : taqseemBottles;
+  const displayed    = activeSection === "full" ? fullBottles : taqseemBottles;
   const visibleItems = displayed.slice(0, visibleCount);
-  const hasMore = visibleCount < displayed.length;
+  const hasMore      = visibleCount < displayed.length;
+
   return (
     <>
       <style>{`
-        
         @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=Tajawal:wght@300;400;500;700&display=swap');
         :root { --bob:#452829; --bob-light:#6b3d3e; --black:#0e0e0e; --dark:#1a1a1a; --gray:#888; --border:#e8e2dc; --off:#faf8f6; --white:#ffffff; }
         *{box-sizing:border-box;margin:0;padding:0;}
         body{font-family:'Tajawal',sans-serif;direction:rtl;background:var(--white);}
-        
+
         .shop-header{background:var(--off);border-bottom:1px solid var(--border);padding:2.8rem 2rem 0;}
         .shop-header-inner{max-width:1400px;margin:0 auto;}
         .shop-eyebrow{font-size:0.68rem;letter-spacing:0.28em;text-transform:uppercase;color:var(--bob);font-weight:600;display:block;margin-bottom:0.4rem;}
@@ -405,7 +373,6 @@ export default function Shop({ initialSection }) {
         .p-card-body{padding:0.95rem 1rem 1.1rem;}
         .p-brand{font-size:0.65rem;letter-spacing:0.13em;text-transform:uppercase;color:#aaa;display:block;margin-bottom:0.22rem;}
 
-        /* ── Bilingual name block ── */
         .p-names{margin-bottom:0.5rem;}
         .p-name{font-family:'Playfair Display',serif;font-size:0.95rem;color:var(--dark);font-weight:600;line-height:1.3;}
         .p-name-ar{font-family:'Tajawal',sans-serif;font-size:1rem;color:var(--dark);font-weight:600;line-height:1.3;}
@@ -439,9 +406,14 @@ export default function Shop({ initialSection }) {
         .section-head-left{display:flex;align-items:center;gap:0.7rem;}
         .section-head h2{font-family:'Playfair Display',serif;font-size:1.4rem;color:var(--dark);font-weight:700;}
         .section-head-count{font-size:0.78rem;color:var(--gray);background:var(--off);border:1px solid var(--border);padding:0.2rem 0.6rem;border-radius:20px;}
-        .section-icon{width:34px;height:34px;border:1.5px solid var(--border);border-radius:50%;display:flex;align-items:center;justify-content:center;color:var(--bob);background:white;flex-shrink:0;}
 
         .guest-notice{background:#fff7ed;border-bottom:1px solid #fde8c8;padding:0.55rem 2rem;font-size:0.8rem;color:#b5620a;text-align:center;letter-spacing:0.02em;}
+
+        .show-more-wrap{display:flex;flex-direction:column;align-items:center;gap:1rem;padding:2.5rem 0 1rem;}
+        .show-more-count{font-size:0.82rem;color:var(--gray);letter-spacing:0.04em;}
+        .show-more-btn{padding:0.75rem 2.5rem;border:1.5px solid var(--bob);border-radius:3px;background:white;color:var(--bob);font-family:'Tajawal',sans-serif;font-size:0.92rem;font-weight:600;cursor:pointer;transition:all 0.2s;}
+        .show-more-btn:hover{background:var(--bob);color:white;}
+
         .toolbar-mobile-row{display:contents;}
         @media(max-width:600px){.toolbar-mobile-row{display:flex;gap:0.4rem;align-items:center;}}
         @keyframes spin{to{transform:rotate(360deg)}}
@@ -463,7 +435,6 @@ export default function Shop({ initialSection }) {
           .result-count{display:none;}
           .shop-main{padding:0.75rem;}
           .p-grid{grid-template-columns:repeat(2,1fr);gap:0.55rem;}
-          .p-card-img-wrap{aspect-ratio:1;}
           .p-card-body{padding:0.5rem 0.55rem 0.65rem;}
           .p-brand{font-size:0.56rem;margin-bottom:0.12rem;}
           .p-name-ar{font-size:0.82rem;line-height:1.2;}
@@ -487,37 +458,8 @@ export default function Shop({ initialSection }) {
           .section-head{margin-bottom:0.85rem;}
           .section-head h2{font-size:1rem;}
           .section-head-count{font-size:0.68rem;}
-          .section-icon{width:26px;height:26px;}
           .guest-notice{padding:0.4rem 0.75rem;font-size:0.7rem;}
           .p-card-actions{display:none;}
-          .show-more-wrap {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 1rem;
-  padding: 2.5rem 0 1rem;
-}
-.show-more-count {
-  font-size: 0.82rem;
-  color: var(--gray);
-  letter-spacing: 0.04em;
-}
-.show-more-btn {
-  padding: 0.75rem 2.5rem;
-  border: 1.5px solid var(--bob);
-  border-radius: 3px;
-  background: white;
-  color: var(--bob);
-  font-family: 'Tajawal', sans-serif;
-  font-size: 0.92rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-.show-more-btn:hover {
-  background: var(--bob);
-  color: white;
-}
         }
       `}</style>
 
@@ -532,20 +474,14 @@ export default function Shop({ initialSection }) {
           <div className="section-tabs">
             <button
               className={`section-tab ${activeSection === "full" ? "active" : ""}`}
-              onClick={() => {
-                setActiveSection("full");
-                setVisibleCount(15);
-              }}
+              onClick={() => { setActiveSection("full"); setVisibleCount(15); }}
             >
               العطور الكاملة
               <span className="tab-count">{fullBottles.length}</span>
             </button>
             <button
               className={`section-tab ${activeSection === "taqseem" ? "active" : ""}`}
-              onClick={() => {
-                setActiveSection("taqseem");
-                setVisibleCount(15);
-              }}
+              onClick={() => { setActiveSection("taqseem"); setVisibleCount(15); }}
             >
               التقسيمات
               <span className="tab-count">{taqseemBottles.length}</span>
@@ -590,26 +526,16 @@ export default function Shop({ initialSection }) {
           </div>
         </div>
       </div>
+
       <div className={`filter-panel ${showFilters ? "open" : ""}`}>
         <div className="filter-panel-inner">
           {brands.length > 0 && (
             <div className="filter-row">
               <span className="filter-label">البراند</span>
               <div className="brand-scroll">
-                <button
-                  className={`pill ${brand === "" ? "active" : ""}`}
-                  onClick={() => setBrand("")}
-                >
-                  الكل
-                </button>
+                <button className={`pill ${brand === "" ? "active" : ""}`} onClick={() => setBrand("")}>الكل</button>
                 {brands.map((b) => (
-                  <button
-                    key={b}
-                    className={`pill ${brand === b ? "active" : ""}`}
-                    onClick={() => setBrand(brand === b ? "" : b)}
-                  >
-                    {b}
-                  </button>
+                  <button key={b} className={`pill ${brand === b ? "active" : ""}`} onClick={() => setBrand(brand === b ? "" : b)}>{b}</button>
                 ))}
               </div>
             </div>
@@ -621,9 +547,7 @@ export default function Shop({ initialSection }) {
           <div className="filter-row">
             <span className="filter-label">الجنس</span>
             <Pills options={GENDERS} value={gender} onChange={setGender} />
-            <span className="filter-label" style={{ marginRight: "1rem" }}>
-              العائلة
-            </span>
+            <span className="filter-label" style={{ marginRight: "1rem" }}>العائلة</span>
             <Pills options={FAMILIES} value={family} onChange={setFamily} />
           </div>
         </div>
@@ -632,30 +556,21 @@ export default function Shop({ initialSection }) {
       <div className="shop-main">
         {loading ? (
           <div className="loading-state">
-            <Loader2
-              size={28}
-              style={{ animation: "spin 1s linear infinite", color: "#452829" }}
-            />
+            <Loader2 size={28} style={{ animation: "spin 1s linear infinite", color: "#452829" }} />
             <p>جاري تحميل العطور...</p>
           </div>
         ) : error ? (
           <div className="error-state">
             <h3>تعذّر تحميل العطور</h3>
             <p>{error}</p>
-            <button className="retry-btn" onClick={fetchPerfumes}>
-              إعادة المحاولة
-            </button>
+            <button className="retry-btn" onClick={fetchPerfumes}>إعادة المحاولة</button>
           </div>
         ) : (
           <>
             <div className="section-head">
               <div className="section-head-left">
-                <h2>
-                  {activeSection === "full" ? "العطور الكاملة" : "التقسيمات"}
-                </h2>
-                <span className="section-head-count">
-                  {displayed.length} عطر
-                </span>
+                <h2>{activeSection === "full" ? "العطور الكاملة" : "التقسيمات"}</h2>
+                <span className="section-head-count">{displayed.length} عطر</span>
               </div>
             </div>
             <div className="p-grid">
@@ -667,18 +582,13 @@ export default function Shop({ initialSection }) {
                 ))
               )}
             </div>
-            {/* ── Show more ── */}
             {!loading && !error && displayed.length > 0 && (
               <div className="show-more-wrap">
                 <span className="show-more-count">
-                  عرض {Math.min(visibleCount, displayed.length)} من{" "}
-                  {displayed.length} عطر
+                  عرض {Math.min(visibleCount, displayed.length)} من {displayed.length} عطر
                 </span>
                 {hasMore && (
-                  <button
-                    className="show-more-btn"
-                    onClick={() => setVisibleCount((v) => v + 15)}
-                  >
+                  <button className="show-more-btn" onClick={() => setVisibleCount((v) => v + 15)}>
                     عرض المزيد
                   </button>
                 )}
