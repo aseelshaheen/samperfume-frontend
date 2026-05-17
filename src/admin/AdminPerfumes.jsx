@@ -177,28 +177,31 @@ function PerfumeForm({ initial, onSave, onCancel, saving }) {
     set("fragranceFamily", selected ? current.filter((f) => f !== value) : [...current, value]);
   };
 
-  const handleOriginalPrice = (rawVal) => {
-    const orig = parseFloat(rawVal);
-    const disc = parseFloat(form._discountedPrice);
-    const pct =
-      !isNaN(orig) && orig > 0 && !isNaN(disc) && disc >= 0 && disc < orig
-        ? Math.round(((orig - disc) / orig) * 100) : 0;
-    setForm((prev) => ({
-      ...prev,
-      _originalPrice: rawVal,
-      fullBottle: { ...prev.fullBottle, price: rawVal },
-      discount: pct,
-    }));
-  };
+const handleOriginalPrice = (rawVal) => {
+  const orig = parseFloat(rawVal);
+  const disc = parseFloat(form._discountedPrice);
+  // Use precise percentage, not Math.round
+  const pct =
+    !isNaN(orig) && orig > 0 && !isNaN(disc) && disc >= 0 && disc < orig
+      ? +((( orig - disc) / orig) * 100).toFixed(4)
+      : 0;
+  setForm((prev) => ({
+    ...prev,
+    _originalPrice: rawVal,
+    fullBottle: { ...prev.fullBottle, price: rawVal },
+    discount: pct,
+  }));
+};
 
-  const handleDiscountedPrice = (rawVal) => {
-    const orig = parseFloat(form._originalPrice);
-    const disc = parseFloat(rawVal);
-    const pct =
-      !isNaN(orig) && orig > 0 && !isNaN(disc) && disc >= 0 && disc < orig
-        ? Math.round(((orig - disc) / orig) * 100) : 0;
-    setForm((prev) => ({ ...prev, _discountedPrice: rawVal, discount: pct }));
-  };
+const handleDiscountedPrice = (rawVal) => {
+  const orig = parseFloat(form._originalPrice);
+  const disc = parseFloat(rawVal);
+  const pct =
+    !isNaN(orig) && orig > 0 && !isNaN(disc) && disc >= 0 && disc < orig
+      ? +((( orig - disc) / orig) * 100).toFixed(4)
+      : 0;
+  setForm((prev) => ({ ...prev, _discountedPrice: rawVal, discount: pct }));
+};
 
   const showFull    = ["full_only", "both"].includes(form.availability);
   const showTaqseem = ["taqseem_only", "both"].includes(form.availability);
