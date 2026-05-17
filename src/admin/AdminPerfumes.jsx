@@ -1,5 +1,3 @@
-javascript
-
 import { useState, useEffect } from "react";
 import {
   Plus,
