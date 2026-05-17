@@ -27,13 +27,28 @@ const EMPTY = {
   fragranceFamily: "other",
   description: "",
   availability: "full_only",
-  fullBottle: { price: "", stock: "", size_ml: "" },
+  fullBottle: { price: "", wholesalePrice: "", stock: "", size_ml: "" },
   taqseem: { sourceBottle_ml: "", sizes: [] },
   discount: 0,
   _originalPrice: "",
   _discountedPrice: "",
   isFeatured: false,
   images: [{ url: "", isMain: true }],
+};
+
+// Arabic labels for fragrance families
+const FRAGRANCE_FAMILY_LABELS = {
+  oud:      "عود",
+  woody:    "خشبي",
+  floral:   "زهري",
+  oriental: "شرقي",
+  fresh:    "منعش",
+  citrus:   "حمضي",
+  aquatic:  "مائي",
+  gourmand: "حلواني",
+  chypre:   "شيبر",
+  fougere:  "فوجير",
+  other:    "أخرى",
 };
 
 function TaqseemSizes({ sizes, onChange }) {
@@ -66,8 +81,11 @@ function TaqseemSizes({ sizes, onChange }) {
             value={s.ml ?? ""}
             onChange={(e) => update(i, "ml", e.target.value)}
           />
-          <input className="af-input" type="text" inputMode="decimal" placeholder="₪ السعر"
-            
+          <input
+            className="af-input"
+            type="text"
+            inputMode="decimal"
+            placeholder="₪ السعر"
             value={s.price ?? ""}
             onChange={(e) => update(i, "price", e.target.value)}
           />
@@ -108,9 +126,10 @@ function buildInitial(perfume) {
     description: perfume.description ?? "",
     discount:    perfume.discount    ?? 0,
     fullBottle: {
-      price:   perfume.fullBottle?.price   ?? "",
-      stock:   perfume.fullBottle?.stock   ?? "",
-      size_ml: perfume.fullBottle?.size_ml ?? "",
+      price:          perfume.fullBottle?.price          ?? "",
+      wholesalePrice: perfume.fullBottle?.wholesalePrice ?? "",
+      stock:          perfume.fullBottle?.stock          ?? "",
+      size_ml:        perfume.fullBottle?.size_ml        ?? "",
     },
     taqseem: {
       sourceBottle_ml: perfume.taqseem?.sourceBottle_ml ?? "",
@@ -132,7 +151,6 @@ function buildInitial(perfume) {
 function PerfumeForm({ initial, onSave, onCancel, saving }) {
   const [form, setForm] = useState(() => buildInitial(initial));
 
-  // Reset form when the perfume being edited changes
   useEffect(() => {
     setForm(buildInitial(initial));
   }, [initial]);
@@ -179,6 +197,17 @@ function PerfumeForm({ initial, onSave, onCancel, saving }) {
     const { _originalPrice, _discountedPrice, ...payload } = form;
     onSave(payload);
   };
+
+  // Profit margin hint
+  const origNum  = parseFloat(form._originalPrice);
+  const whlsNum  = parseFloat(form.fullBottle.wholesalePrice);
+  const showMargin =
+    form.fullBottle.wholesalePrice !== "" &&
+    !isNaN(whlsNum) &&
+    form._originalPrice !== "" &&
+    !isNaN(origNum) &&
+    origNum > 0 &&
+    whlsNum >= 0;
 
   return (
     <form className="af-form" onSubmit={handleSubmit}>
@@ -254,11 +283,8 @@ function PerfumeForm({ initial, onSave, onCancel, saving }) {
             value={form.fragranceFamily}
             onChange={(e) => set("fragranceFamily", e.target.value)}
           >
-            {[
-              "oud","woody","floral","oriental","fresh",
-              "citrus","aquatic","gourmand","chypre","fougere","other",
-            ].map((f) => (
-              <option key={f} value={f}>{f}</option>
+            {Object.entries(FRAGRANCE_FAMILY_LABELS).map(([value, label]) => (
+              <option key={value} value={value}>{label}</option>
             ))}
           </select>
         </div>
@@ -342,7 +368,10 @@ function PerfumeForm({ initial, onSave, onCancel, saving }) {
         <div className="af-row-2">
           <div className="af-field">
             <label className="af-label">السعر الأصلي (₪) *</label>
-            <input className="af-input" type="text" inputMode="decimal"
+            <input
+              className="af-input"
+              type="text"
+              inputMode="decimal"
               step="any"
               required={showFull}
               value={form._originalPrice}
@@ -352,7 +381,10 @@ function PerfumeForm({ initial, onSave, onCancel, saving }) {
           </div>
           <div className="af-field">
             <label className="af-label">السعر بعد الخصم (₪)</label>
-            <input className="af-input" type="text" inputMode="decimal"
+            <input
+              className="af-input"
+              type="text"
+              inputMode="decimal"
               step="any"
               value={form._discountedPrice}
               onChange={(e) => handleDiscountedPrice(e.target.value)}
@@ -360,13 +392,39 @@ function PerfumeForm({ initial, onSave, onCancel, saving }) {
             />
           </div>
         </div>
+
+        {/* ── Wholesale price ── */}
+        <div className="af-field" style={{ marginTop: "0.85rem" }}>
+          <label className="af-label">سعر الجملة (₪)</label>
+          <input
+            className="af-input"
+            type="text"
+            inputMode="decimal"
+            step="any"
+            value={form.fullBottle.wholesalePrice}
+            onChange={(e) => set("fullBottle.wholesalePrice", e.target.value)}
+            placeholder="اتركه فارغاً إن لم يكن للبيع بالجملة"
+            style={{ maxWidth: 220 }}
+          />
+          {showMargin && (
+            <div style={{ fontSize: "0.78rem", color: "#888", marginTop: "0.25rem" }}>
+              هامش الربح:{" "}
+              <strong style={{ color: "#452829" }}>
+                ₪{(origNum - whlsNum).toFixed(2)}
+              </strong>
+              {" · "}
+              {Math.round(((origNum - whlsNum) / origNum) * 100)}%
+            </div>
+          )}
+        </div>
+
         {form.discount > 0 ? (
           <div
             style={{
               fontSize: "0.8rem",
               color: "#2e7d5a",
               fontWeight: 700,
-              marginTop: "0.3rem",
+              marginTop: "0.5rem",
               display: "flex",
               alignItems: "center",
               gap: "0.35rem",
