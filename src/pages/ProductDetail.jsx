@@ -7,7 +7,6 @@ import {
   Package,
   Layers,
   ChevronLeft,
-  Share2,
   Loader2,
   Send,
   ArrowRight,
@@ -16,7 +15,7 @@ import {
 } from "lucide-react";
 import { guestCartAdd } from "./Cart";
 
-const API = import.meta.env.VITE_API_URL || "/api";;
+const API = import.meta.env.VITE_API_URL || "/api";
 const getToken = () => localStorage.getItem("sp_token");
 const authHeaders = () => ({
   "Content-Type": "application/json",
@@ -24,9 +23,9 @@ const authHeaders = () => ({
 });
 
 const availLabel = {
-  full_only: "قارورة كاملة فقط",
+  full_only:    "قارورة كاملة فقط",
   taqseem_only: "تقسيمة فقط",
-  both: "كاملة وتقسيمة",
+  both:         "كاملة وتقسيمة",
 };
 
 /* ── Star Rating ── */
@@ -39,13 +38,8 @@ function StarRating({ value, onChange, readonly }) {
           key={i}
           size={18}
           fill={(readonly ? value : hovered || value) >= i ? "#452829" : "none"}
-          color={
-            (readonly ? value : hovered || value) >= i ? "#452829" : "#ddd"
-          }
-          style={{
-            cursor: readonly ? "default" : "pointer",
-            transition: "all 0.15s",
-          }}
+          color={(readonly ? value : hovered || value) >= i ? "#452829" : "#ddd"}
+          style={{ cursor: readonly ? "default" : "pointer", transition: "all 0.15s" }}
           onMouseEnter={() => !readonly && setHovered(i)}
           onMouseLeave={() => !readonly && setHovered(0)}
           onClick={() => !readonly && onChange?.(i)}
@@ -60,20 +54,20 @@ export default function ProductDetail() {
   const { slug, section } = useParams();
   const navigate = useNavigate();
 
-  const [perfume, setPerfume] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [activeSection, setActiveSection] = useState(section ?? "full");
-  const [selectedImg, setSelectedImg] = useState(0);
-  const [selectedSize, setSelectedSize] = useState(null);
-  const [qty, setQty] = useState(1);
-  const [cartMsg, setCartMsg] = useState("");
-  const [inWishlist, setInWishlist] = useState(false);
-  const [wishlistMsg, setWishlistMsg] = useState("");
+  const [perfume,         setPerfume]         = useState(null);
+  const [loading,         setLoading]         = useState(true);
+  const [activeSection,   setActiveSection]   = useState(section ?? "full");
+  const [selectedImg,     setSelectedImg]     = useState(0);
+  const [selectedSize,    setSelectedSize]    = useState(null);
+  const [qty,             setQty]             = useState(1);
+  const [cartMsg,         setCartMsg]         = useState("");
+  const [inWishlist,      setInWishlist]      = useState(false);
+  const [wishlistMsg,     setWishlistMsg]     = useState("");
   const [loadingWishlist, setLoadingWishlist] = useState(false);
-  const [reviewRating, setReviewRating] = useState(0);
-  const [reviewComment, setReviewComment] = useState("");
-  const [submitting, setSubmitting] = useState(false);
-  const [reviewError, setReviewError] = useState("");
+  const [reviewRating,    setReviewRating]    = useState(0);
+  const [reviewComment,   setReviewComment]   = useState("");
+  const [submitting,      setSubmitting]      = useState(false);
+  const [reviewMsg,       setReviewMsg]       = useState({ text: "", ok: true });
 
   useEffect(() => {
     if (section === "full" || section === "taqseem") setActiveSection(section);
@@ -83,29 +77,21 @@ export default function ProductDetail() {
     const load = async () => {
       setLoading(true);
       try {
-        const res = await fetch(`${API}/perfumes/${slug}`);
+        const res  = await fetch(`${API}/perfumes/${slug}`);
         const data = await res.json();
         if (data.success) {
           setPerfume(data.perfume);
           const avail = data.perfume.availability;
-          if (activeSection === "taqseem" && avail === "full_only")
-            setActiveSection("full");
-          if (activeSection === "full" && avail === "taqseem_only")
-            setActiveSection("taqseem");
-          if (data.perfume.taqseem?.sizes?.length)
-            setSelectedSize(data.perfume.taqseem.sizes[0]);
+          if (activeSection === "taqseem" && avail === "full_only")  setActiveSection("full");
+          if (activeSection === "full"    && avail === "taqseem_only") setActiveSection("taqseem");
+          if (data.perfume.taqseem?.sizes?.length) setSelectedSize(data.perfume.taqseem.sizes[0]);
 
           if (getToken()) {
             try {
-              const wRes = await fetch(`${API}/users/wishlist`, {
-                headers: authHeaders(),
-              });
+              const wRes  = await fetch(`${API}/users/wishlist`, { headers: authHeaders() });
               const wData = await wRes.json();
               if (wData.success) {
-                setInWishlist(
-                  wData.wishlist?.some((p) => p._id === data.perfume._id) ??
-                    false,
-                );
+                setInWishlist(wData.wishlist?.some((p) => p._id === data.perfume._id) ?? false);
               }
             } catch {}
           }
@@ -123,17 +109,16 @@ export default function ProductDetail() {
 
   const handleAddToCart = async () => {
     if (activeSection === "taqseem" && !selectedSize) return;
-
     if (getToken()) {
       try {
-        const res = await fetch(`${API}/users/cart`, {
+        const res  = await fetch(`${API}/users/cart`, {
           method: "POST",
           headers: authHeaders(),
           body: JSON.stringify({
             perfumeId: perfume._id,
-            section: activeSection,
-            size: activeSection === "taqseem" ? selectedSize?.ml : undefined,
-            quantity: qty,
+            section:   activeSection,
+            size:      activeSection === "taqseem" ? selectedSize?.ml : undefined,
+            quantity:  qty,
           }),
         });
         const data = await res.json();
@@ -149,12 +134,12 @@ export default function ProductDetail() {
     } else {
       guestCartAdd({
         perfumeId: perfume._id,
-        slug: perfume.slug,
-        name: perfume.name,
-        brand: perfume.brand,
-        section: activeSection,
-        size: activeSection === "taqseem" ? selectedSize?.ml : null,
-        quantity: qty,
+        slug:      perfume.slug,
+        name:      perfume.name,
+        brand:     perfume.brand,
+        section:   activeSection,
+        size:      activeSection === "taqseem" ? selectedSize?.ml : null,
+        quantity:  qty,
       });
       setCartMsg("تمت الإضافة ✓");
       setTimeout(() => setCartMsg(""), 2500);
@@ -162,16 +147,10 @@ export default function ProductDetail() {
   };
 
   const handleWishlist = async () => {
-    if (!getToken()) {
-      navigate("/auth");
-      return;
-    }
+    if (!getToken()) { navigate("/auth"); return; }
     setLoadingWishlist(true);
     try {
-      const res = await fetch(`${API}/users/wishlist/${perfume._id}`, {
-        method: "POST",
-        headers: authHeaders(),
-      });
+      const res  = await fetch(`${API}/users/wishlist/${perfume._id}`, { method: "POST", headers: authHeaders() });
       const data = await res.json();
       if (data.success) {
         const nowIn = !inWishlist;
@@ -185,22 +164,20 @@ export default function ProductDetail() {
 
   const handleReview = async (e) => {
     e.preventDefault();
-    if (!getToken()) {
-      navigate("/auth");
-      return;
-    }
+    if (!getToken()) { navigate("/auth"); return; }
     if (!reviewRating) {
-      setReviewError("يرجى اختيار تقييم");
+      setReviewMsg({ text: "يرجى اختيار تقييم", ok: false });
       return;
     }
     if (!reviewComment.trim()) {
-      setReviewError("يرجى كتابة تعليق");
+      setReviewMsg({ text: "يرجى كتابة تعليق", ok: false });
       return;
     }
     setSubmitting(true);
-    setReviewError("");
+    setReviewMsg({ text: "", ok: true });
     try {
-      const res = await fetch(`${API}/perfumes/${perfume._id}/reviews`, {
+      // Use perfume._id (not slug) — the reviews route expects the mongo id
+      const res  = await fetch(`${API}/perfumes/${perfume._id}/reviews`, {
         method: "POST",
         headers: authHeaders(),
         body: JSON.stringify({ rating: reviewRating, comment: reviewComment }),
@@ -209,85 +186,56 @@ export default function ProductDetail() {
       if (data.success) {
         setReviewRating(0);
         setReviewComment("");
-        setReviewError("✓ شكراً! سيظهر تقييمك بعد مراجعته من قِبَل الإدارة.");
+        setReviewMsg({ text: "✓ شكراً! سيظهر تقييمك بعد مراجعته من قِبَل الإدارة.", ok: true });
       } else {
-        setReviewError(data.message ?? "حدث خطأ");
+        // Show the actual server error so it's easier to debug
+        setReviewMsg({ text: data.message ?? "حدث خطأ في الخادم", ok: false });
       }
     } catch {
-      setReviewError("خطأ في الاتصال");
+      setReviewMsg({ text: "خطأ في الاتصال بالخادم", ok: false });
     }
     setSubmitting(false);
   };
 
   /* ── Loading / not found ── */
-  if (loading)
-    return (
-      <div
-        style={{
-          minHeight: "60vh",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-        }}
-      >
-        <Loader2
-          size={28}
-          style={{ animation: "spin 1s linear infinite", color: "#452829" }}
-        />
-        <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
-      </div>
-    );
+  if (loading) return (
+    <div style={{ minHeight: "60vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <Loader2 size={28} style={{ animation: "spin 1s linear infinite", color: "#452829" }} />
+      <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+    </div>
+  );
 
-  if (!perfume)
-    return (
-      <div
-        style={{
-          minHeight: "60vh",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          flexDirection: "column",
-          gap: "1rem",
-          fontFamily: "Tajawal,sans-serif",
-          direction: "rtl",
-        }}
-      >
-        <h2 style={{ fontFamily: "Playfair Display,serif" }}>
-          العطر غير موجود
-        </h2>
-        <button
-          onClick={() => navigate("/shop")}
-          style={{
-            background: "#452829",
-            color: "white",
-            border: "none",
-            padding: "0.7rem 1.8rem",
-            borderRadius: 4,
-            cursor: "pointer",
-            fontFamily: "Tajawal,sans-serif",
-          }}
-        >
-          العودة للمتجر
-        </button>
-      </div>
-    );
+  if (!perfume) return (
+    <div style={{ minHeight: "60vh", display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: "1rem", fontFamily: "Tajawal,sans-serif", direction: "rtl" }}>
+      <h2 style={{ fontFamily: "Playfair Display,serif" }}>العطر غير موجود</h2>
+      <button onClick={() => navigate("/shop")} style={{ background: "#452829", color: "white", border: "none", padding: "0.7rem 1.8rem", borderRadius: 4, cursor: "pointer", fontFamily: "Tajawal,sans-serif" }}>
+        العودة للمتجر
+      </button>
+    </div>
+  );
 
-  const images = perfume.images ?? [];
+  const images  = perfume.images ?? [];
   const mainImg = images[selectedImg]?.url ?? images[0]?.url;
-  const isBoth = perfume.availability === "both";
+  const isBoth  = perfume.availability === "both";
 
-  // No rounding — exact price as entered by admin
-const displayPrice =
-  activeSection === "full"
-    ? perfume.discount > 0
-      ? Math.round(perfume.fullBottle.price - (perfume.fullBottle.price * perfume.discount / 100))
-      : perfume.fullBottle?.price
-    : selectedSize?.price;
+  // FIX: always Math.round — no float digits
+  const displayPrice =
+    activeSection === "full"
+      ? perfume.discount > 0
+        ? Math.round(perfume.fullBottle.price * (1 - perfume.discount / 100))
+        : perfume.fullBottle?.price != null
+        ? Math.round(perfume.fullBottle.price)
+        : null
+      : selectedSize?.price != null
+      ? Math.round(selectedSize.price)
+      : null;
 
-const originalPrice =
-  activeSection === "full" && perfume.discount > 0
-    ? Math.ceil(perfume.fullBottle?.price)  // ← ceil, not round
-    : null;
+  const originalPrice =
+    activeSection === "full" && perfume.discount > 0
+      ? Math.round(perfume.fullBottle?.price)
+      : null;
+
+  const discountPct = perfume.discount > 0 ? Math.round(perfume.discount) : 0;
 
   return (
     <>
@@ -337,7 +285,7 @@ const originalPrice =
 
         .pd-price-block{margin-bottom:1.4rem;}
         .pd-price{font-family:'Playfair Display',serif;font-size:2rem;font-weight:700;color:var(--bob);}
-        .pd-price-original{font-size:1rem;color:#bbb;text-decoration:line-through;margin-right:0.6rem;}
+        .pd-price-original{font-size:1rem;color:#bbb;text-decoration:line-through;margin-left:0.6rem;}
         .pd-price-sub{font-size:0.78rem;color:#aaa;margin-top:0.2rem;display:block;}
 
         .pd-sizes-label{font-size:0.72rem;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:#aaa;margin-bottom:0.6rem;display:block;}
@@ -361,8 +309,8 @@ const originalPrice =
         .pd-add-btn{flex:1;background:var(--bob);color:white;border:none;padding:0 1.5rem;height:44px;font-family:'Tajawal',sans-serif;font-size:0.95rem;font-weight:700;cursor:pointer;border-radius:5px;display:flex;align-items:center;justify-content:center;gap:0.5rem;transition:background 0.2s;min-width:160px;}
         .pd-add-btn:hover:not(:disabled){background:var(--bob-l);}
         .pd-add-btn.success{background:#2e7d5a;}
-        .pd-share-btn{width:44px;height:44px;border:1.5px solid var(--border);border-radius:5px;background:white;display:flex;align-items:center;justify-content:center;cursor:pointer;color:#888;transition:all 0.2s;}
-        .pd-share-btn:hover{border-color:#ccc;color:var(--black);}
+        .pd-wishlist-btn{width:44px;height:44px;border:1.5px solid var(--border);border-radius:5px;background:white;display:flex;align-items:center;justify-content:center;cursor:pointer;color:#888;transition:all 0.2s;}
+        .pd-wishlist-btn:hover{border-color:#ccc;color:var(--black);}
 
         .pd-meta{display:flex;gap:0.5rem;flex-wrap:wrap;margin-bottom:1.4rem;}
         .pd-meta-badge{font-size:0.7rem;font-weight:700;padding:0.22rem 0.7rem;border-radius:20px;letter-spacing:0.04em;}
@@ -392,7 +340,9 @@ const originalPrice =
         .rf-label{font-size:0.72rem;font-weight:700;color:#aaa;letter-spacing:0.08em;text-transform:uppercase;}
         .rf-textarea{background:white;border:1.5px solid var(--border);color:var(--black);font-family:'Tajawal',sans-serif;font-size:0.9rem;padding:0.7rem 0.9rem;border-radius:5px;outline:none;resize:vertical;min-height:100px;transition:border-color 0.2s;width:100%;box-sizing:border-box;}
         .rf-textarea:focus{border-color:var(--bob);}
-        .rf-error{font-size:0.8rem;color:#c0392b;background:#fef2f2;border:1px solid #fecaca;padding:0.5rem 0.75rem;border-radius:4px;margin-bottom:0.75rem;}
+        .rf-msg{font-size:0.8rem;padding:0.5rem 0.75rem;border-radius:4px;margin-bottom:0.75rem;}
+        .rf-msg.error{color:#c0392b;background:#fef2f2;border:1px solid #fecaca;}
+        .rf-msg.success{color:#2e7d5a;background:#f0fdf4;border:1px solid #bbf7d0;}
         .rf-submit{background:var(--bob);color:white;border:none;padding:0.7rem 1.8rem;font-family:'Tajawal',sans-serif;font-size:0.9rem;font-weight:700;border-radius:5px;cursor:pointer;display:flex;align-items:center;gap:0.4rem;transition:background 0.2s;}
         .rf-submit:hover:not(:disabled){background:var(--bob-l);}
         .rf-submit:disabled{opacity:0.6;cursor:not-allowed;}
@@ -427,22 +377,16 @@ const originalPrice =
             {mainImg ? (
               <img loading="lazy" src={mainImg} alt={perfume.name} className="pd-main-img" />
             ) : (
-              <div className="pd-img-ph">
-                <Package size={64} strokeWidth={0.8} />
-              </div>
+              <div className="pd-img-ph"><Package size={64} strokeWidth={0.8} /></div>
             )}
-            {perfume.discount > 0 && (
-              <span className="pd-discount-badge">-{perfume.discount}%</span>
+            {discountPct > 0 && (
+              <span className="pd-discount-badge">-{discountPct}%</span>
             )}
           </div>
           {images.length > 1 && (
             <div className="pd-thumbs">
               {images.map((img, i) => (
-                <div
-                  key={i}
-                  className={`pd-thumb ${selectedImg === i ? "active" : ""}`}
-                  onClick={() => setSelectedImg(i)}
-                >
+                <div key={i} className={`pd-thumb ${selectedImg === i ? "active" : ""}`} onClick={() => setSelectedImg(i)}>
                   <img loading="lazy" src={img.url} alt="" />
                 </div>
               ))}
@@ -457,48 +401,36 @@ const originalPrice =
 
           <div className="pd-rating-row">
             <StarRating value={Math.round(perfume.rating ?? 0)} readonly />
-            <span className="pd-rating-count">
-              ({perfume.reviewCount ?? 0} تقييم)
-            </span>
+            <span className="pd-rating-count">({perfume.reviewCount ?? 0} تقييم)</span>
           </div>
 
           {isBoth && (
             <div className="pd-section-tabs">
-              <button
-                className={`pd-section-tab ${activeSection === "full" ? "active" : ""}`}
-                onClick={() => switchSection("full")}
-              >
+              <button className={`pd-section-tab ${activeSection === "full" ? "active" : ""}`} onClick={() => switchSection("full")}>
                 <Package size={15} /> قارورة كاملة
               </button>
-              <button
-                className={`pd-section-tab ${activeSection === "taqseem" ? "active" : ""}`}
-                onClick={() => switchSection("taqseem")}
-              >
+              <button className={`pd-section-tab ${activeSection === "taqseem" ? "active" : ""}`} onClick={() => switchSection("taqseem")}>
                 <Layers size={15} /> تقسيمة
               </button>
             </div>
           )}
 
           {isBoth && (
-            <div
-              className="pd-crosslink"
-              onClick={() =>
-                switchSection(activeSection === "full" ? "taqseem" : "full")
-              }
-            >
+            <div className="pd-crosslink" onClick={() => switchSection(activeSection === "full" ? "taqseem" : "full")}>
               <ArrowLeftRight size={16} color="#452829" />
               <span className="pd-crosslink-text">
                 {activeSection === "full"
                   ? "هذا العطر متوفر أيضاً كتقسيمة — انقر للتبديل"
                   : "هذا العطر متوفر أيضاً كقارورة كاملة — انقر للتبديل"}
               </span>
-              <ChevronLeft size={15} className="pd-crosslink-arrow" />
+              <ChevronLeft size={15} />
             </div>
           )}
 
+          {/* Price */}
           <div className="pd-price-block">
-            <div>
-              {originalPrice && (
+            <div style={{ display: "flex", alignItems: "baseline", gap: "0.4rem", flexWrap: "wrap" }}>
+              {originalPrice != null && (
                 <span className="pd-price-original">₪{originalPrice}</span>
               )}
               <span className="pd-price">
@@ -506,58 +438,46 @@ const originalPrice =
               </span>
             </div>
             {activeSection === "full" && perfume.fullBottle?.size_ml && (
-              <span className="pd-price-sub">
-                قارورة {perfume.fullBottle.size_ml} مل
-              </span>
+              <span className="pd-price-sub">قارورة {perfume.fullBottle.size_ml} مل</span>
             )}
-            {activeSection === "taqseem" &&
-              perfume.taqseem?.sourceBottle_ml && (
-                <span className="pd-price-sub">
-                  تقسيمات من قارورة {perfume.taqseem.sourceBottle_ml} مل
-                </span>
-              )}
+            {activeSection === "taqseem" && perfume.taqseem?.sourceBottle_ml && (
+              <span className="pd-price-sub">تقسيمات من قارورة {perfume.taqseem.sourceBottle_ml} مل</span>
+            )}
           </div>
 
-          {activeSection === "taqseem" &&
-            perfume.taqseem?.sizes?.length > 0 && (
-              <>
-                <span className="pd-sizes-label">اختر الحجم</span>
-                <div className="pd-sizes">
-                  {perfume.taqseem.sizes.map((s) => (
-                    <button
-                      key={s.ml}
-                      className={`pd-size-btn ${selectedSize?.ml === s.ml ? "active" : ""}`}
-                      onClick={() => setSelectedSize(s)}
-                    >
-                      {s.ml} مل — ₪{s.price}
-                    </button>
-                  ))}
-                </div>
-              </>
-            )}
-
-          {activeSection === "full" &&
-            perfume.fullBottle &&
-            (perfume.fullBottle.size_ml || perfume.discount > 0) && (
-              <div className="pd-bottle-info">
-                {perfume.fullBottle.size_ml && (
-                  <div className="pd-bi-item">
-                    <span className="pd-bi-label">الحجم</span>
-                    <span className="pd-bi-val">
-                      {perfume.fullBottle.size_ml} مل
-                    </span>
-                  </div>
-                )}
-                {perfume.discount > 0 && (
-                  <div className="pd-bi-item">
-                    <span className="pd-bi-label">الخصم</span>
-                    <span className="pd-bi-val" style={{ color: "#b5620a" }}>
-                      {perfume.discount}%
-                    </span>
-                  </div>
-                )}
+          {activeSection === "taqseem" && perfume.taqseem?.sizes?.length > 0 && (
+            <>
+              <span className="pd-sizes-label">اختر الحجم</span>
+              <div className="pd-sizes">
+                {perfume.taqseem.sizes.map((s) => (
+                  <button
+                    key={s.ml}
+                    className={`pd-size-btn ${selectedSize?.ml === s.ml ? "active" : ""}`}
+                    onClick={() => setSelectedSize(s)}
+                  >
+                    {s.ml} مل — ₪{Math.round(s.price)}
+                  </button>
+                ))}
               </div>
-            )}
+            </>
+          )}
+
+          {activeSection === "full" && perfume.fullBottle && (perfume.fullBottle.size_ml || discountPct > 0) && (
+            <div className="pd-bottle-info">
+              {perfume.fullBottle.size_ml && (
+                <div className="pd-bi-item">
+                  <span className="pd-bi-label">الحجم</span>
+                  <span className="pd-bi-val">{perfume.fullBottle.size_ml} مل</span>
+                </div>
+              )}
+              {discountPct > 0 && (
+                <div className="pd-bi-item">
+                  <span className="pd-bi-label">الخصم</span>
+                  <span className="pd-bi-val" style={{ color: "#b5620a" }}>{discountPct}%</span>
+                </div>
+              )}
+            </div>
+          )}
 
           <div className="pd-guest-note">
             🛍 لا تحتاج لتسجيل دخول — أضف للسلة وأدخل بياناتك عند الطلب
@@ -565,100 +485,55 @@ const originalPrice =
 
           <div className="pd-actions">
             <div className="pd-qty">
-              <button
-                className="pd-qty-btn"
-                onClick={() => setQty((q) => Math.max(1, q - 1))}
-              >
-                −
-              </button>
+              <button className="pd-qty-btn" onClick={() => setQty((q) => Math.max(1, q - 1))}>−</button>
               <span className="pd-qty-num">{qty}</span>
-              <button
-                className="pd-qty-btn"
-                onClick={() => setQty((q) => q + 1)}
-              >
-                +
-              </button>
+              <button className="pd-qty-btn" onClick={() => setQty((q) => q + 1)}>+</button>
             </div>
-            <button
-              className={`pd-add-btn ${cartMsg ? "success" : ""}`}
-              onClick={handleAddToCart}
-            >
+            <button className={`pd-add-btn ${cartMsg ? "success" : ""}`} onClick={handleAddToCart}>
               {cartMsg ? <CheckCircle size={16} /> : <ShoppingBag size={16} />}
               {cartMsg || "أضف للسلة"}
             </button>
             {cartMsg && (
-              <button
-                className="pd-add-btn"
-                style={{
-                  background: "#1a1a1a",
-                  minWidth: "auto",
-                  padding: "0 1rem",
-                }}
-                onClick={() => navigate("/cart")}
-              >
+              <button className="pd-add-btn" style={{ background: "#1a1a1a", minWidth: "auto", padding: "0 1rem" }} onClick={() => navigate("/cart")}>
                 عرض السلة
               </button>
             )}
+            {/* Wishlist only — share button removed */}
             <button
-              className="pd-share-btn"
+              className="pd-wishlist-btn"
               title={inWishlist ? "إزالة من المفضلة" : "إضافة للمفضلة"}
               onClick={handleWishlist}
               disabled={loadingWishlist}
               style={{ color: inWishlist ? "#452829" : undefined }}
             >
-              {loadingWishlist ? (
-                <Loader2
-                  size={15}
-                  style={{ animation: "spin 1s linear infinite" }}
-                />
-              ) : (
-                <Heart size={17} fill={inWishlist ? "#452829" : "none"} />
-              )}
+              {loadingWishlist
+                ? <Loader2 size={15} style={{ animation: "spin 1s linear infinite" }} />
+                : <Heart size={17} fill={inWishlist ? "#452829" : "none"} />
+              }
             </button>
             {wishlistMsg && (
-              <span
-                style={{
-                  fontSize: "0.78rem",
-                  color: inWishlist ? "#452829" : "#888",
-                  alignSelf: "center",
-                  whiteSpace: "nowrap",
-                }}
-              >
+              <span style={{ fontSize: "0.78rem", color: inWishlist ? "#452829" : "#888", alignSelf: "center", whiteSpace: "nowrap" }}>
                 {wishlistMsg}
               </span>
             )}
-            <button
-              className="pd-share-btn"
-              onClick={() =>
-                navigator.clipboard?.writeText(window.location.href)
-              }
-            >
-              <Share2 size={17} />
-            </button>
           </div>
 
           <div className="pd-meta">
-            <span
-              className={`pd-meta-badge ${perfume.perfumeType === "arabic" ? "mb-arabic" : "mb-western"}`}
-            >
+            <span className={`pd-meta-badge ${perfume.perfumeType === "arabic" ? "mb-arabic" : "mb-western"}`}>
               {perfume.perfumeType === "arabic" ? "عربي" : "أجنبي"}
             </span>
             <span className="pd-meta-badge mb-gender">
-              {perfume.gender === "male"
-                ? "رجالي"
-                : perfume.gender === "female"
-                  ? "نسائي"
-                  : "مشترك"}
+              {perfume.gender === "male" ? "رجالي" : perfume.gender === "female" ? "نسائي" : "مشترك"}
             </span>
-            {perfume.fragranceFamily && (
-              <span className="pd-meta-badge mb-family">
-                {perfume.fragranceFamily}
-              </span>
-            )}
-            <span
-              className="pd-meta-badge"
-              style={{ background: "#f5f5f5", color: "#888" }}
-            >
+            {Array.isArray(perfume.fragranceFamily)
+              ? perfume.fragranceFamily.map((f) => (
+                  <span key={f} className="pd-meta-badge mb-family">{f}</span>
+                ))
+              : perfume.fragranceFamily && (
+                  <span className="pd-meta-badge mb-family">{perfume.fragranceFamily}</span>
+                )
+            }
+            <span className="pd-meta-badge" style={{ background: "#f5f5f5", color: "#888" }}>
               {availLabel[perfume.availability]}
             </span>
           </div>
@@ -673,27 +548,25 @@ const originalPrice =
         <h2 className="pd-reviews-title">التقييمات والمراجعات</h2>
         <div className="pd-reviews-layout">
           <div>
-            {perfume.reviews?.length > 0 ? (
+            {perfume.reviews?.filter((r) => r.status === "approved").length > 0 ? (
               <div className="review-list">
-                {perfume.reviews.map((r, i) => (
-                  <div key={i} className="review-item">
-                    <div className="review-header">
-                      <span className="review-author">{r.name}</span>
-                      <span className="review-date">
-                        {new Date(r.createdAt).toLocaleDateString("ar-EG")}
-                      </span>
+                {perfume.reviews
+                  .filter((r) => r.status === "approved")
+                  .map((r, i) => (
+                    <div key={i} className="review-item">
+                      <div className="review-header">
+                        <span className="review-author">{r.name}</span>
+                        <span className="review-date">{new Date(r.createdAt).toLocaleDateString("ar-EG")}</span>
+                      </div>
+                      <StarRating value={r.rating} readonly />
+                      <p className="review-comment">{r.comment}</p>
                     </div>
-                    <StarRating value={r.rating} readonly />
-                    <p className="review-comment">{r.comment}</p>
-                  </div>
-                ))}
+                  ))}
               </div>
             ) : (
               <div className="reviews-empty">
                 <Star size={32} strokeWidth={1} color="#ccc" />
-                <p style={{ marginTop: "0.75rem" }}>
-                  لا توجد تقييمات بعد. كن أول من يقيّم!
-                </p>
+                <p style={{ marginTop: "0.75rem" }}>لا توجد تقييمات بعد. كن أول من يقيّم!</p>
               </div>
             )}
           </div>
@@ -715,20 +588,16 @@ const originalPrice =
                     onChange={(e) => setReviewComment(e.target.value)}
                   />
                 </div>
-                {reviewError && <div className="rf-error">{reviewError}</div>}
-                <button
-                  type="submit"
-                  className="rf-submit"
-                  disabled={submitting}
-                >
-                  {submitting ? (
-                    <Loader2
-                      size={15}
-                      style={{ animation: "spin 1s linear infinite" }}
-                    />
-                  ) : (
-                    <Send size={15} />
-                  )}
+                {reviewMsg.text && (
+                  <div className={`rf-msg ${reviewMsg.ok ? "success" : "error"}`}>
+                    {reviewMsg.text}
+                  </div>
+                )}
+                <button type="submit" className="rf-submit" disabled={submitting}>
+                  {submitting
+                    ? <Loader2 size={15} style={{ animation: "spin 1s linear infinite" }} />
+                    : <Send size={15} />
+                  }
                   {submitting ? "جاري الإرسال..." : "إرسال التقييم"}
                 </button>
               </form>
