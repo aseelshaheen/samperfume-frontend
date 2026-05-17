@@ -763,6 +763,7 @@ export default function AdminPerfumes() {
                   <col style={{ width: "65px" }} />
                   <col style={{ width: "75px" }} />
                   <col style={{ width: "120px" }} />
+                  <col style={{ width: "75px" }} />
                   <col style={{ width: "55px" }} />
                   <col style={{ width: "48px" }} />
                   <col style={{ width: "68px" }} />
@@ -775,6 +776,7 @@ export default function AdminPerfumes() {
                     <th>النوع</th>
                     <th>البيع</th>
                     <th>السعر</th>
+                    <th>سعر الجملة</th>
                     <th>مخزون</th>
                     <th>نشط</th>
                     <th>إجراءات</th>
@@ -823,6 +825,11 @@ export default function AdminPerfumes() {
                         <td>
                           <span style={{ color: "#452829", fontWeight: 700, fontSize: "0.8rem" }}>
                             {displayPrice(p)}
+                          </span>
+                        </td>
+                        <td>
+                          <span style={{ color: "#888", fontSize: "0.8rem" }}>
+                            {p.fullBottle?.wholesalePrice ? `₪${p.fullBottle.wholesalePrice}` : "—"}
                           </span>
                         </td>
                         <td>
