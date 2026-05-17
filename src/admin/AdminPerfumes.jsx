@@ -114,7 +114,7 @@ function buildInitial(perfume) {
   const orig = perfume.fullBottle?.price ?? "";
   const disc =
     perfume.discount > 0 && orig !== ""
-      ? +(orig - (orig * perfume.discount) / 100).toFixed(2)
+      ? orig - (orig * Math.round(perfume.discount)) / 100
       : "";
 
   let fragranceFamily = [];
