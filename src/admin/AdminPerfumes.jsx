@@ -12,7 +12,7 @@ import {
   ToggleRight,
 } from "lucide-react";
 
-const API = import.meta.env.VITE_API_URL || "/api";;
+const API = import.meta.env.VITE_API_URL || "/api";
 const authHeaders = () => ({
   "Content-Type": "application/json",
   Authorization: `Bearer ${localStorage.getItem("sp_token")}`,
@@ -24,7 +24,7 @@ const EMPTY = {
   brand: "",
   perfumeType: "western",
   gender: "unisex",
-  fragranceFamily: "other",
+  fragranceFamily: [],
   description: "",
   availability: "full_only",
   fullBottle: { price: "", wholesalePrice: "", stock: "", size_ml: "" },
@@ -36,7 +36,6 @@ const EMPTY = {
   images: [{ url: "", isMain: true }],
 };
 
-// Arabic labels for fragrance families
 const FRAGRANCE_FAMILY_LABELS = {
   oud:      "عود",
   woody:    "خشبي",
@@ -46,27 +45,23 @@ const FRAGRANCE_FAMILY_LABELS = {
   citrus:   "حمضي",
   aquatic:  "مائي",
   gourmand: "حلواني",
+  Fruity:   "فاكهي",
+  Musk:     "مسكي",
+  Spicy:    "توابل",
   chypre:   "شيبر",
   fougere:  "فوجير",
   other:    "أخرى",
 };
 
 function TaqseemSizes({ sizes, onChange }) {
-  const add = () => onChange([...sizes, { ml: "", price: "", stock: "" }]);
+  const add    = () => onChange([...sizes, { ml: "", price: "", stock: "" }]);
   const remove = (i) => onChange(sizes.filter((_, idx) => idx !== i));
   const update = (i, f, v) =>
     onChange(sizes.map((s, idx) => (idx === i ? { ...s, [f]: v } : s)));
 
   return (
     <div>
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          marginBottom: "0.6rem",
-        }}
-      >
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "0.6rem" }}>
         <label className="af-label">أحجام التقسيمة</label>
         <button type="button" className="ts-add" onClick={add}>
           <Plus size={12} /> حجم
@@ -74,38 +69,13 @@ function TaqseemSizes({ sizes, onChange }) {
       </div>
       {sizes.map((s, i) => (
         <div key={i} className="ts-row">
-          <input
-            className="af-input"
-            type="number"
-            placeholder="مل"
-            value={s.ml ?? ""}
-            onChange={(e) => update(i, "ml", e.target.value)}
-          />
-          <input
-            className="af-input"
-            type="text"
-            inputMode="decimal"
-            placeholder="₪ السعر"
-            value={s.price ?? ""}
-            onChange={(e) => update(i, "price", e.target.value)}
-          />
-          <input
-            className="af-input"
-            type="number"
-            placeholder="مخزون"
-            value={s.stock ?? ""}
-            onChange={(e) => update(i, "stock", e.target.value)}
-          />
-          <button type="button" className="ts-del" onClick={() => remove(i)}>
-            <X size={12} />
-          </button>
+          <input className="af-input" type="number" placeholder="مل"      value={s.ml    ?? ""} onChange={(e) => update(i, "ml",    e.target.value)} />
+          <input className="af-input" type="text"   inputMode="decimal" placeholder="₪ السعر" value={s.price ?? ""} onChange={(e) => update(i, "price", e.target.value)} />
+          <input className="af-input" type="number" placeholder="مخزون"   value={s.stock ?? ""} onChange={(e) => update(i, "stock", e.target.value)} />
+          <button type="button" className="ts-del" onClick={() => remove(i)}><X size={12} /></button>
         </div>
       ))}
-      {sizes.length === 0 && (
-        <p style={{ fontSize: "0.78rem", color: "#bbb" }}>
-          لا توجد أحجام مضافة
-        </p>
-      )}
+      {sizes.length === 0 && <p style={{ fontSize: "0.78rem", color: "#bbb" }}>لا توجد أحجام مضافة</p>}
     </div>
   );
 }
@@ -117,14 +87,24 @@ function buildInitial(perfume) {
     perfume.discount > 0 && orig !== ""
       ? orig - (orig * perfume.discount) / 100
       : "";
+
+  // Migrate old single-string fragranceFamily to array
+  let fragranceFamily = [];
+  if (Array.isArray(perfume.fragranceFamily)) {
+    fragranceFamily = perfume.fragranceFamily;
+  } else if (perfume.fragranceFamily) {
+    fragranceFamily = [perfume.fragranceFamily];
+  }
+
   return {
     ...EMPTY,
     ...perfume,
-    name:        perfume.name        ?? "",
-    nameAr:      perfume.nameAr      ?? "",
-    brand:       perfume.brand       ?? "",
-    description: perfume.description ?? "",
-    discount:    perfume.discount    ?? 0,
+    name:            perfume.name        ?? "",
+    nameAr:          perfume.nameAr      ?? "",
+    brand:           perfume.brand       ?? "",
+    description:     perfume.description ?? "",
+    discount:        perfume.discount    ?? 0,
+    fragranceFamily,
     fullBottle: {
       price:          perfume.fullBottle?.price          ?? "",
       wholesalePrice: perfume.fullBottle?.wholesalePrice ?? "",
@@ -151,9 +131,7 @@ function buildInitial(perfume) {
 function PerfumeForm({ initial, onSave, onCancel, saving }) {
   const [form, setForm] = useState(() => buildInitial(initial));
 
-  useEffect(() => {
-    setForm(buildInitial(initial));
-  }, [initial]);
+  useEffect(() => { setForm(buildInitial(initial)); }, [initial]);
 
   const set = (path, val) => {
     const parts = path.split(".");
@@ -164,19 +142,19 @@ function PerfumeForm({ initial, onSave, onCancel, saving }) {
     );
   };
 
+  const toggleFragrance = (value) => {
+    const current = form.fragranceFamily ?? [];
+    const selected = current.includes(value);
+    set("fragranceFamily", selected ? current.filter((f) => f !== value) : [...current, value]);
+  };
+
   const handleOriginalPrice = (rawVal) => {
     const orig = parseFloat(rawVal);
     const disc = parseFloat(form._discountedPrice);
     const pct =
       !isNaN(orig) && orig > 0 && !isNaN(disc) && disc >= 0 && disc < orig
-        ? Math.round(((orig - disc) / orig) * 100)
-        : 0;
-    setForm((prev) => ({
-      ...prev,
-      _originalPrice: rawVal,
-      fullBottle: { ...prev.fullBottle, price: rawVal },
-      discount: pct,
-    }));
+        ? Math.round(((orig - disc) / orig) * 100) : 0;
+    setForm((prev) => ({ ...prev, _originalPrice: rawVal, fullBottle: { ...prev.fullBottle, price: rawVal }, discount: pct }));
   };
 
   const handleDiscountedPrice = (rawVal) => {
@@ -184,8 +162,7 @@ function PerfumeForm({ initial, onSave, onCancel, saving }) {
     const disc = parseFloat(rawVal);
     const pct =
       !isNaN(orig) && orig > 0 && !isNaN(disc) && disc >= 0 && disc < orig
-        ? Math.round(((orig - disc) / orig) * 100)
-        : 0;
+        ? Math.round(((orig - disc) / orig) * 100) : 0;
     setForm((prev) => ({ ...prev, _discountedPrice: rawVal, discount: pct }));
   };
 
@@ -198,16 +175,11 @@ function PerfumeForm({ initial, onSave, onCancel, saving }) {
     onSave(payload);
   };
 
-  // Profit margin hint
-  const origNum  = parseFloat(form._originalPrice);
-  const whlsNum  = parseFloat(form.fullBottle.wholesalePrice);
+  const origNum    = parseFloat(form._originalPrice);
+  const whlsNum    = parseFloat(form.fullBottle.wholesalePrice);
   const showMargin =
-    form.fullBottle.wholesalePrice !== "" &&
-    !isNaN(whlsNum) &&
-    form._originalPrice !== "" &&
-    !isNaN(origNum) &&
-    origNum > 0 &&
-    whlsNum >= 0;
+    form.fullBottle.wholesalePrice !== "" && !isNaN(whlsNum) &&
+    form._originalPrice !== "" && !isNaN(origNum) && origNum > 0 && whlsNum >= 0;
 
   return (
     <form className="af-form" onSubmit={handleSubmit}>
@@ -216,148 +188,110 @@ function PerfumeForm({ initial, onSave, onCancel, saving }) {
       <div className="af-row-2">
         <div className="af-field">
           <label className="af-label">الاسم بالإنجليزية *</label>
-          <input
-            className="af-input"
-            required
-            value={form.name}
-            onChange={(e) => set("name", e.target.value)}
-            placeholder="Bleu de Chanel"
-            dir="ltr"
-            style={{ textAlign: "left" }}
-          />
+          <input className="af-input" required value={form.name} onChange={(e) => set("name", e.target.value)} placeholder="Bleu de Chanel" dir="ltr" style={{ textAlign: "left" }} />
         </div>
         <div className="af-field">
           <label className="af-label">الاسم بالعربية</label>
-          <input
-            className="af-input"
-            value={form.nameAr}
-            onChange={(e) => set("nameAr", e.target.value)}
-            placeholder="بلو دي شانيل"
-            dir="rtl"
-          />
+          <input className="af-input" value={form.nameAr} onChange={(e) => set("nameAr", e.target.value)} placeholder="بلو دي شانيل" dir="rtl" />
         </div>
       </div>
 
       {/* ── Brand ── */}
       <div className="af-field">
         <label className="af-label">البراند *</label>
-        <input
-          className="af-input"
-          required
-          value={form.brand}
-          onChange={(e) => set("brand", e.target.value)}
-          placeholder="Chanel"
-          dir="ltr"
-          style={{ textAlign: "left" }}
-        />
+        <input className="af-input" required value={form.brand} onChange={(e) => set("brand", e.target.value)} placeholder="Chanel" dir="ltr" style={{ textAlign: "left" }} />
       </div>
 
-      <div className="af-row-3">
+      {/* ── Type + Gender ── */}
+      <div className="af-row-2">
         <div className="af-field">
           <label className="af-label">نوع العطر</label>
-          <select
-            className="af-select"
-            value={form.perfumeType}
-            onChange={(e) => set("perfumeType", e.target.value)}
-          >
+          <select className="af-select" value={form.perfumeType} onChange={(e) => set("perfumeType", e.target.value)}>
             <option value="arabic">عربي</option>
             <option value="western">أجنبي</option>
           </select>
         </div>
         <div className="af-field">
           <label className="af-label">الجنس</label>
-          <select
-            className="af-select"
-            value={form.gender}
-            onChange={(e) => set("gender", e.target.value)}
-          >
+          <select className="af-select" value={form.gender} onChange={(e) => set("gender", e.target.value)}>
             <option value="male">رجالي</option>
             <option value="female">نسائي</option>
             <option value="unisex">مشترك</option>
           </select>
         </div>
-        <div className="af-field">
-          <label className="af-label">عائلة العطر</label>
-          <select
-            className="af-select"
-            value={form.fragranceFamily}
-            onChange={(e) => set("fragranceFamily", e.target.value)}
-          >
-            {Object.entries(FRAGRANCE_FAMILY_LABELS).map(([value, label]) => (
-              <option key={value} value={value}>{label}</option>
-            ))}
-          </select>
+      </div>
+
+      {/* ── Fragrance Family (multi-select chips) ── */}
+      <div className="af-field">
+        <label className="af-label">
+          عائلة العطر
+          {form.fragranceFamily?.length > 0 && (
+            <span style={{ marginRight: "0.5rem", color: "#452829", fontWeight: 700 }}>
+              ({form.fragranceFamily.length} مختار)
+            </span>
+          )}
+        </label>
+        <div className="fragrance-chips">
+          {Object.entries(FRAGRANCE_FAMILY_LABELS).map(([value, label]) => {
+            const selected = (form.fragranceFamily ?? []).includes(value);
+            return (
+              <button
+                key={value}
+                type="button"
+                className={`frag-chip ${selected ? "frag-chip--on" : ""}`}
+                onClick={() => toggleFragrance(value)}
+              >
+                {label}
+              </button>
+            );
+          })}
         </div>
       </div>
 
+      {/* ── Description ── */}
       <div className="af-field">
         <label className="af-label">الوصف *</label>
-        <textarea
-          className="af-textarea"
-          required
-          value={form.description}
-          onChange={(e) => set("description", e.target.value)}
-          placeholder="وصف العطر، مكوناته، رائحته..."
-        />
+        <textarea className="af-textarea" required value={form.description} onChange={(e) => set("description", e.target.value)} placeholder="وصف العطر، مكوناته، رائحته..." />
       </div>
 
+      {/* ── Availability ── */}
       <div className="af-field">
         <label className="af-label">طريقة البيع</label>
-        <select
-          className="af-select"
-          value={form.availability}
-          onChange={(e) => set("availability", e.target.value)}
-        >
+        <select className="af-select" value={form.availability} onChange={(e) => set("availability", e.target.value)}>
           <option value="full_only">قارورة كاملة فقط</option>
           <option value="taqseem_only">تقسيمة فقط</option>
           <option value="both">كليهما</option>
         </select>
       </div>
 
+      {/* ── Full Bottle ── */}
       {showFull && (
         <div className="af-subsection">
           <div className="af-sub-title">القارورة الكاملة</div>
-          <div className="af-row-3">
+          <div className="af-row-2">
             <div className="af-field">
               <label className="af-label">المخزون</label>
-              <input
-                className="af-input"
-                type="number"
-                value={form.fullBottle.stock}
-                onChange={(e) => set("fullBottle.stock", e.target.value)}
-              />
+              <input className="af-input" type="number" value={form.fullBottle.stock} onChange={(e) => set("fullBottle.stock", e.target.value)} />
             </div>
             <div className="af-field">
               <label className="af-label">الحجم (مل)</label>
-              <input
-                className="af-input"
-                type="number"
-                value={form.fullBottle.size_ml}
-                onChange={(e) => set("fullBottle.size_ml", e.target.value)}
-              />
+              <input className="af-input" type="number" value={form.fullBottle.size_ml} onChange={(e) => set("fullBottle.size_ml", e.target.value)} />
             </div>
           </div>
         </div>
       )}
 
+      {/* ── Taqseem ── */}
       {showTaqseem && (
         <div className="af-subsection">
           <div className="af-sub-title">التقسيمات</div>
           <div className="af-field" style={{ marginBottom: "0.8rem" }}>
             <label className="af-label">حجم القارورة الأصلية (مل)</label>
-            <input
-              className="af-input"
-              type="number"
-              value={form.taqseem.sourceBottle_ml}
-              onChange={(e) => set("taqseem.sourceBottle_ml", e.target.value)}
-              style={{ maxWidth: 150 }}
-            />
+            <input className="af-input" type="number" value={form.taqseem.sourceBottle_ml} onChange={(e) => set("taqseem.sourceBottle_ml", e.target.value)} style={{ maxWidth: 150 }} />
           </div>
           <TaqseemSizes
             sizes={form.taqseem.sizes}
-            onChange={(sizes) =>
-              setForm((p) => ({ ...p, taqseem: { ...p.taqseem, sizes } }))
-            }
+            onChange={(sizes) => setForm((p) => ({ ...p, taqseem: { ...p.taqseem, sizes } }))}
           />
         </div>
       )}
@@ -368,32 +302,15 @@ function PerfumeForm({ initial, onSave, onCancel, saving }) {
         <div className="af-row-2">
           <div className="af-field">
             <label className="af-label">السعر الأصلي (₪) *</label>
-            <input
-              className="af-input"
-              type="text"
-              inputMode="decimal"
-              step="any"
-              required={showFull}
-              value={form._originalPrice}
-              onChange={(e) => handleOriginalPrice(e.target.value)}
-              placeholder="مثال: 200"
-            />
+            <input className="af-input" type="text" inputMode="decimal" step="any" required={showFull} value={form._originalPrice} onChange={(e) => handleOriginalPrice(e.target.value)} placeholder="مثال: 200" />
           </div>
           <div className="af-field">
             <label className="af-label">السعر بعد الخصم (₪)</label>
-            <input
-              className="af-input"
-              type="text"
-              inputMode="decimal"
-              step="any"
-              value={form._discountedPrice}
-              onChange={(e) => handleDiscountedPrice(e.target.value)}
-              placeholder="اتركه فارغاً إن لم يكن هناك خصم"
-            />
+            <input className="af-input" type="text" inputMode="decimal" step="any" value={form._discountedPrice} onChange={(e) => handleDiscountedPrice(e.target.value)} placeholder="اتركه فارغاً إن لم يكن هناك خصم" />
           </div>
         </div>
 
-        {/* ── Wholesale price ── */}
+        {/* ── Wholesale ── */}
         <div className="af-field" style={{ marginTop: "0.85rem" }}>
           <label className="af-label">سعر الجملة (₪)</label>
           <input
@@ -409,35 +326,16 @@ function PerfumeForm({ initial, onSave, onCancel, saving }) {
           {showMargin && (
             <div style={{ fontSize: "0.78rem", color: "#888", marginTop: "0.25rem" }}>
               هامش الربح:{" "}
-              <strong style={{ color: "#452829" }}>
-                ₪{(origNum - whlsNum).toFixed(2)}
-              </strong>
-              {" · "}
-              {Math.round(((origNum - whlsNum) / origNum) * 100)}%
+              <strong style={{ color: "#452829" }}>₪{(origNum - whlsNum).toFixed(2)}</strong>
+              {" · "}{Math.round(((origNum - whlsNum) / origNum) * 100)}%
             </div>
           )}
         </div>
 
         {form.discount > 0 ? (
-          <div
-            style={{
-              fontSize: "0.8rem",
-              color: "#2e7d5a",
-              fontWeight: 700,
-              marginTop: "0.5rem",
-              display: "flex",
-              alignItems: "center",
-              gap: "0.35rem",
-            }}
-          >
+          <div style={{ fontSize: "0.8rem", color: "#2e7d5a", fontWeight: 700, marginTop: "0.5rem", display: "flex", alignItems: "center", gap: "0.35rem" }}>
             <span>✓</span>
-            <span>
-              نسبة الخصم: {form.discount}% · السعر المعروض: ₪
-              {Math.round(
-                parseFloat(form._originalPrice) -
-                  (parseFloat(form._originalPrice) * form.discount) / 100,
-              )}
-            </span>
+            <span>نسبة الخصم: {form.discount}% · السعر المعروض: ₪{Math.round(parseFloat(form._originalPrice) - (parseFloat(form._originalPrice) * form.discount) / 100)}</span>
           </div>
         ) : (
           form._originalPrice && (
@@ -448,21 +346,16 @@ function PerfumeForm({ initial, onSave, onCancel, saving }) {
         )}
       </div>
 
+      {/* ── Featured ── */}
       <div className="af-field">
         <label className="af-label">مميز في الرئيسية</label>
-        <div
-          className="af-toggle"
-          onClick={() => set("isFeatured", !form.isFeatured)}
-        >
-          {form.isFeatured ? (
-            <ToggleRight size={26} color="#452829" />
-          ) : (
-            <ToggleLeft size={26} color="#ccc" />
-          )}
+        <div className="af-toggle" onClick={() => set("isFeatured", !form.isFeatured)}>
+          {form.isFeatured ? <ToggleRight size={26} color="#452829" /> : <ToggleLeft size={26} color="#ccc" />}
           <span>{form.isFeatured ? "نعم" : "لا"}</span>
         </div>
       </div>
 
+      {/* ── Images ── */}
       <div className="af-subsection">
         <div className="af-sub-title">روابط الصور</div>
         {form.images.map((img, i) => (
@@ -472,54 +365,25 @@ function PerfumeForm({ initial, onSave, onCancel, saving }) {
               placeholder={`رابط الصورة ${i + 1}`}
               value={img.url}
               onChange={(e) =>
-                setForm((p) => ({
-                  ...p,
-                  images: p.images.map((im, idx) =>
-                    idx === i ? { ...im, url: e.target.value } : im,
-                  ),
-                }))
+                setForm((p) => ({ ...p, images: p.images.map((im, idx) => idx === i ? { ...im, url: e.target.value } : im) }))
               }
             />
             {i > 0 && (
-              <button
-                type="button"
-                className="ts-del"
-                onClick={() =>
-                  setForm((p) => ({
-                    ...p,
-                    images: p.images.filter((_, idx) => idx !== i),
-                  }))
-                }
-              >
+              <button type="button" className="ts-del" onClick={() => setForm((p) => ({ ...p, images: p.images.filter((_, idx) => idx !== i) }))}>
                 <X size={12} />
               </button>
             )}
           </div>
         ))}
-        <button
-          type="button"
-          className="ts-add"
-          onClick={() =>
-            setForm((p) => ({
-              ...p,
-              images: [...p.images, { url: "", isMain: false }],
-            }))
-          }
-        >
+        <button type="button" className="ts-add" onClick={() => setForm((p) => ({ ...p, images: [...p.images, { url: "", isMain: false }] }))}>
           <Plus size={12} /> صورة
         </button>
       </div>
 
       <div className="af-actions">
-        <button type="button" className="af-cancel" onClick={onCancel}>
-          إلغاء
-        </button>
+        <button type="button" className="af-cancel" onClick={onCancel}>إلغاء</button>
         <button type="submit" className="af-save" disabled={saving}>
-          {saving ? (
-            <Loader2 size={14} style={{ animation: "spin 1s linear infinite" }} />
-          ) : (
-            <Save size={14} />
-          )}
+          {saving ? <Loader2 size={14} style={{ animation: "spin 1s linear infinite" }} /> : <Save size={14} />}
           {saving ? "جاري الحفظ..." : "حفظ العطر"}
         </button>
       </div>
@@ -560,12 +424,8 @@ export default function AdminPerfumes() {
     try {
       const url    = editing ? `${API}/perfumes/${editing._id}` : `${API}/perfumes`;
       const method = editing ? "PUT" : "POST";
-      const res    = await fetch(url, {
-        method,
-        headers: authHeaders(),
-        body: JSON.stringify(form),
-      });
-      const data = await res.json();
+      const res    = await fetch(url, { method, headers: authHeaders(), body: JSON.stringify(form) });
+      const data   = await res.json();
       if (data.success) {
         showToast(editing ? "تم التعديل" : "تمت الإضافة");
         setMode("list");
@@ -599,19 +459,16 @@ export default function AdminPerfumes() {
         headers: authHeaders(),
         body: JSON.stringify({ isActive: !p.isActive }),
       });
-      setPerfumes((prev) =>
-        prev.map((x) => x._id === p._id ? { ...x, isActive: !x.isActive } : x),
-      );
+      setPerfumes((prev) => prev.map((x) => x._id === p._id ? { ...x, isActive: !x.isActive } : x));
     } catch {}
   };
 
-  const q = search.toLowerCase().trim();
+  const q        = search.toLowerCase().trim();
   const filtered = q
-    ? perfumes.filter(
-        (p) =>
-          p.name?.toLowerCase().includes(q) ||
-          p.nameAr?.includes(search.trim()) ||
-          p.brand?.toLowerCase().includes(q),
+    ? perfumes.filter((p) =>
+        p.name?.toLowerCase().includes(q) ||
+        p.nameAr?.includes(search.trim()) ||
+        p.brand?.toLowerCase().includes(q),
       )
     : perfumes;
 
@@ -629,30 +486,48 @@ export default function AdminPerfumes() {
     <>
       <style>{`
         @keyframes spin { to { transform:rotate(360deg); } }
+
+        /* ── Form ── */
         .af-form { display:flex; flex-direction:column; gap:1.2rem; }
         .af-row-2 { display:grid; grid-template-columns:1fr 1fr; gap:1rem; }
         .af-row-3 { display:grid; grid-template-columns:1fr 1fr 1fr; gap:1rem; }
         .af-field { display:flex; flex-direction:column; gap:0.32rem; }
         .af-label { font-size:0.72rem; font-weight:700; color:#888; letter-spacing:0.06em; text-transform:uppercase; }
-        .af-input, .af-select, .af-textarea { background:white; border:1.5px solid #e8e2dc; color:#1a1a1a; font-family:'Tajawal',sans-serif; font-size:0.88rem; padding:0.6rem 0.82rem; border-radius:5px; outline:none; transition:border-color 0.2s; width:100%; }
-        .af-input:focus, .af-select:focus, .af-textarea:focus { border-color:#452829; box-shadow:0 0 0 3px rgba(69,40,41,0.07); }
+        .af-input,.af-select,.af-textarea { background:white; border:1.5px solid #e8e2dc; color:#1a1a1a; font-family:'Tajawal',sans-serif; font-size:0.88rem; padding:0.6rem 0.82rem; border-radius:5px; outline:none; transition:border-color 0.2s; width:100%; box-sizing:border-box; }
+        .af-input:focus,.af-select:focus,.af-textarea:focus { border-color:#452829; box-shadow:0 0 0 3px rgba(69,40,41,0.07); }
         .af-textarea { resize:vertical; min-height:85px; }
         .af-select { appearance:none; cursor:pointer; }
         .af-subsection { background:#faf8f6; border:1px solid #e8e2dc; border-radius:8px; padding:1.1rem; }
         .af-sub-title { font-size:0.68rem; font-weight:700; letter-spacing:0.12em; text-transform:uppercase; color:#452829; margin-bottom:0.85rem; }
+
+        /* ── Fragrance chips ── */
+        .fragrance-chips { display:flex; flex-wrap:wrap; gap:0.45rem; margin-top:0.2rem; }
+        .frag-chip { padding:0.3rem 0.8rem; border-radius:20px; border:1.5px solid #e8e2dc; background:white; color:#888; font-family:'Tajawal',sans-serif; font-size:0.8rem; cursor:pointer; transition:all 0.18s; font-weight:500; }
+        .frag-chip:hover { border-color:#452829; color:#452829; }
+        .frag-chip--on { background:#452829; border-color:#452829; color:white; font-weight:700; }
+
+        /* ── Taqseem ── */
         .ts-row { display:grid; grid-template-columns:1fr 1fr 1fr 30px; gap:0.45rem; align-items:center; margin-bottom:0.45rem; }
         .ts-add { display:inline-flex; align-items:center; gap:0.3rem; background:rgba(69,40,41,0.08); border:1px solid rgba(69,40,41,0.2); color:#452829; font-family:'Tajawal',sans-serif; font-size:0.75rem; padding:0.28rem 0.7rem; border-radius:4px; cursor:pointer; transition:background 0.2s; margin-top:0.3rem; }
         .ts-add:hover { background:rgba(69,40,41,0.15); }
         .ts-del { background:rgba(192,57,43,0.08); border:none; color:#c0392b; cursor:pointer; border-radius:4px; padding:0.28rem; display:flex; align-items:center; justify-content:center; }
+
+        /* ── Images ── */
         .img-row { display:grid; grid-template-columns:1fr 30px; gap:0.45rem; align-items:center; margin-bottom:0.45rem; }
+
+        /* ── Toggle ── */
         .af-toggle { display:flex; align-items:center; gap:0.5rem; cursor:pointer; padding-top:0.2rem; }
         .af-toggle span { font-size:0.85rem; color:#555; }
+
+        /* ── Form actions ── */
         .af-actions { display:flex; gap:0.8rem; justify-content:flex-end; padding-top:0.5rem; border-top:1px solid #e8e2dc; }
         .af-cancel { background:white; border:1.5px solid #e8e2dc; color:#888; font-family:'Tajawal',sans-serif; font-size:0.88rem; padding:0.62rem 1.4rem; border-radius:5px; cursor:pointer; transition:all 0.2s; }
         .af-cancel:hover { color:#1a1a1a; border-color:#ccc; }
         .af-save { background:#452829; border:none; color:white; font-family:'Tajawal',sans-serif; font-size:0.88rem; font-weight:700; padding:0.62rem 1.7rem; border-radius:5px; cursor:pointer; display:flex; align-items:center; gap:0.4rem; transition:background 0.2s; }
         .af-save:hover { background:#5c3637; }
         .af-save:disabled { opacity:0.6; cursor:not-allowed; }
+
+        /* ── List header ── */
         .pm-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:1.8rem; flex-wrap:wrap; gap:1rem; }
         .pm-heading { font-family:'Playfair Display',serif; font-size:1.4rem; color:#1a1a1a; font-weight:700; }
         .pm-actions { display:flex; gap:0.8rem; align-items:center; }
@@ -662,8 +537,10 @@ export default function AdminPerfumes() {
         .pm-search-icon { position:absolute; right:0.65rem; top:50%; transform:translateY(-50%); color:#bbb; pointer-events:none; }
         .add-btn { display:flex; align-items:center; gap:0.4rem; background:#452829; border:none; color:white; font-family:'Tajawal',sans-serif; font-size:0.88rem; font-weight:700; padding:0.55rem 1.2rem; border-radius:5px; cursor:pointer; transition:background 0.2s; white-space:nowrap; }
         .add-btn:hover { background:#5c3637; }
+
+        /* ── Table ── */
         .pm-table-wrap { background:white; border:1px solid #e8e2dc; border-radius:10px; overflow:hidden; overflow-x:auto; }
-        .pm-table { width:100%; border-collapse:collapse; table-layout:fixed; min-width:720px; }
+        .pm-table { width:100%; border-collapse:collapse; table-layout:fixed; min-width:800px; }
         .pm-table thead th { background:#faf8f6; padding:0.65rem 0.9rem; font-size:0.68rem; font-weight:700; letter-spacing:0.1em; text-transform:uppercase; color:#aaa; text-align:right; border-bottom:1.5px solid #e8e2dc; white-space:nowrap; overflow:hidden; }
         .pm-row td { padding:0.75rem 0.9rem; border-bottom:1px solid #f5f1ed; font-size:0.82rem; vertical-align:middle; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
         .pm-row:last-child td { border-bottom:none; }
@@ -682,17 +559,26 @@ export default function AdminPerfumes() {
         .pm-edit:hover { color:#1a1a1a; background:#f5f1ed; }
         .pm-del { background:none; border:none; color:#ddd; cursor:pointer; padding:0.28rem; border-radius:4px; display:inline-flex; transition:all 0.2s; }
         .pm-del:hover { color:#c0392b; background:#fef2f2; }
+
+        /* ── Wholesale badge in table ── */
+        .wholesale-price { color:#1e4db7; font-weight:700; font-size:0.8rem; }
+
+        /* ── Form panel ── */
         .form-panel { background:white; border:1px solid #e8e2dc; border-radius:10px; padding:1.8rem; }
         .form-panel-title { font-family:'Playfair Display',serif; font-size:1.1rem; color:#1a1a1a; font-weight:600; margin-bottom:1.5rem; padding-bottom:1rem; border-bottom:1px solid #e8e2dc; display:flex; align-items:center; justify-content:space-between; }
         .fp-close { background:none; border:none; color:#aaa; cursor:pointer; }
         .fp-close:hover { color:#1a1a1a; }
+
+        /* ── Toast ── */
         .admin-toast { position:fixed; bottom:2rem; left:50%; transform:translateX(-50%); padding:0.75rem 1.5rem; border-radius:6px; font-size:0.88rem; font-weight:600; z-index:9999; white-space:nowrap; animation:slideUp 0.3s ease; font-family:'Tajawal',sans-serif; }
         .admin-toast.success { background:#2e7d5a; color:white; }
-        .admin-toast.error { background:#c0392b; color:white; }
+        .admin-toast.error   { background:#c0392b; color:white; }
         @keyframes slideUp { from { opacity:0; transform:translateX(-50%) translateY(10px); } to { opacity:1; transform:translateX(-50%) translateY(0); } }
+
         .empty-pm { text-align:center; padding:3rem; color:#aaa; }
         .empty-pm p { margin-top:0.5rem; font-size:0.88rem; }
 
+        /* ── Mobile ── */
         @media(max-width:600px){
           .pm-header{flex-direction:column;align-items:flex-start;gap:0.65rem;margin-bottom:1rem;}
           .pm-heading{font-size:1.1rem;}
@@ -701,7 +587,7 @@ export default function AdminPerfumes() {
           .pm-search input{width:100%;font-size:0.8rem;}
           .add-btn{font-size:0.8rem;padding:0.45rem 0.85rem;}
           .pm-table-wrap{overflow-x:auto;}
-          .pm-table{min-width:700px;}
+          .pm-table{min-width:800px;}
           .pm-table thead th{padding:0.5rem 0.65rem;font-size:0.6rem;}
           .pm-row td{padding:0.55rem 0.65rem;font-size:0.76rem;}
           .pm-img,.pm-img-ph{width:32px;height:32px;}
@@ -709,13 +595,13 @@ export default function AdminPerfumes() {
           .form-panel{padding:1rem;}
           .form-panel-title{font-size:0.95rem;margin-bottom:1rem;padding-bottom:0.75rem;}
           .af-row-2{grid-template-columns:1fr;}
-          .af-row-3{grid-template-columns:1fr 1fr;}
           .af-input,.af-select,.af-textarea{font-size:0.84rem;padding:0.52rem 0.7rem;}
           .af-label{font-size:0.65rem;}
           .af-subsection{padding:0.85rem;}
           .ts-row{grid-template-columns:1fr 1fr 1fr 26px;gap:0.35rem;}
           .af-actions{gap:0.55rem;}
           .af-cancel,.af-save{font-size:0.82rem;padding:0.52rem 1rem;}
+          .frag-chip{font-size:0.75rem;padding:0.25rem 0.6rem;}
         }
       `}</style>
 
@@ -734,10 +620,7 @@ export default function AdminPerfumes() {
                   onChange={(e) => setSearch(e.target.value)}
                 />
               </div>
-              <button
-                className="add-btn"
-                onClick={() => { setEditing(null); setMode("add"); }}
-              >
+              <button className="add-btn" onClick={() => { setEditing(null); setMode("add"); }}>
                 <Plus size={15} /> إضافة عطر
               </button>
             </div>
@@ -758,15 +641,15 @@ export default function AdminPerfumes() {
               <table className="pm-table">
                 <colgroup>
                   <col style={{ width: "50px" }} />
-                  <col style={{ width: "180px" }} />
+                  <col style={{ width: "170px" }} />
                   <col style={{ width: "90px" }} />
+                  <col style={{ width: "60px" }} />
+                  <col style={{ width: "70px" }} />
+                  <col style={{ width: "110px" }} />
+                  <col style={{ width: "90px" }} />
+                  <col style={{ width: "50px" }} />
+                  <col style={{ width: "45px" }} />
                   <col style={{ width: "65px" }} />
-                  <col style={{ width: "75px" }} />
-                  <col style={{ width: "120px" }} />
-                  <col style={{ width: "75px" }} />
-                  <col style={{ width: "55px" }} />
-                  <col style={{ width: "48px" }} />
-                  <col style={{ width: "68px" }} />
                 </colgroup>
                 <thead>
                   <tr>
@@ -784,80 +667,62 @@ export default function AdminPerfumes() {
                 </thead>
                 <tbody>
                   {filtered.map((p) => {
-                    const img =
-                      p.images?.find((i) => i.isMain)?.url ?? p.images?.[0]?.url;
+                    const img = p.images?.find((i) => i.isMain)?.url ?? p.images?.[0]?.url;
                     const avClass =
-                      p.availability === "full_only" ? "av-full"
+                      p.availability === "full_only"     ? "av-full"
                       : p.availability === "taqseem_only" ? "av-taqseem"
                       : "av-both";
                     const avLabel =
-                      p.availability === "full_only" ? "كاملة"
+                      p.availability === "full_only"     ? "كاملة"
                       : p.availability === "taqseem_only" ? "تقسيمة"
                       : "كليهما";
                     return (
                       <tr key={p._id} className="pm-row">
                         <td>
-                          {img ? (
-                            <img loading="lazy" src={img} alt="" className="pm-img" />
-                          ) : (
-                            <div className="pm-img-ph">
-                              <Package size={15} />
-                            </div>
-                          )}
+                          {img
+                            ? <img loading="lazy" src={img} alt="" className="pm-img" />
+                            : <div className="pm-img-ph"><Package size={15} /></div>
+                          }
                         </td>
                         <td>
                           <span className="pm-name">{p.name}</span>
-                          {p.nameAr && p.nameAr.trim() !== "" && (
-                            <span className="pm-name-ar">{p.nameAr}</span>
-                          )}
+                          {p.nameAr && p.nameAr.trim() !== "" && <span className="pm-name-ar">{p.nameAr}</span>}
                         </td>
-                        <td>
-                          <span className="pm-brand">{p.brand}</span>
-                        </td>
+                        <td><span className="pm-brand">{p.brand}</span></td>
                         <td>
                           <span style={{ fontSize: "0.76rem", color: "#888" }}>
                             {p.perfumeType === "arabic" ? "عربي" : "أجنبي"}
                           </span>
                         </td>
-                        <td>
-                          <span className={`avail-badge ${avClass}`}>{avLabel}</span>
-                        </td>
+                        <td><span className={`avail-badge ${avClass}`}>{avLabel}</span></td>
                         <td>
                           <span style={{ color: "#452829", fontWeight: 700, fontSize: "0.8rem" }}>
                             {displayPrice(p)}
                           </span>
                         </td>
                         <td>
-                          <span style={{ color: "#888", fontSize: "0.8rem" }}>
-                            {p.fullBottle?.wholesalePrice ? `₪${p.fullBottle.wholesalePrice}` : "—"}
-                          </span>
+                          {p.fullBottle?.wholesalePrice
+                            ? <span className="wholesale-price">₪{p.fullBottle.wholesalePrice}</span>
+                            : <span style={{ color: "#ccc", fontSize: "0.8rem" }}>—</span>
+                          }
                         </td>
                         <td>
-                          <span style={{ color: "#888", fontSize: "0.8rem" }}>
-                            {p.fullBottle?.stock ?? 0}
-                          </span>
+                          <span style={{ color: "#888", fontSize: "0.8rem" }}>{p.fullBottle?.stock ?? 0}</span>
                         </td>
                         <td>
                           <button className="toggle-btn" onClick={() => handleToggle(p)}>
-                            {p.isActive ? (
-                              <ToggleRight size={22} color="#2e7d5a" />
-                            ) : (
-                              <ToggleLeft size={22} color="#ccc" />
-                            )}
+                            {p.isActive
+                              ? <ToggleRight size={22} color="#2e7d5a" />
+                              : <ToggleLeft  size={22} color="#ccc" />
+                            }
                           </button>
                         </td>
                         <td>
                           <div style={{ display: "flex", gap: "0.2rem" }}>
-                            <button
-                              className="pm-edit"
-                              onClick={() => { setEditing(p); setMode("edit"); }}
-                            >
+                            <button className="pm-edit" onClick={() => { setEditing(p); setMode("edit"); }}>
                               <Pencil size={14} />
                             </button>
-                            <button
-                              className="pm-del"
-                              onClick={() => handleDelete(p._id)}
-                            >
+                            <button className="pm-del" onClick={() => handleDelete(p._id)}>
                               <Trash2 size={14} />
                             </button>
                           </div>
@@ -873,13 +738,8 @@ export default function AdminPerfumes() {
       ) : (
         <div className="form-panel">
           <div className="form-panel-title">
-            <span>
-              {mode === "edit" ? `تعديل: ${editing?.name}` : "إضافة عطر جديد"}
-            </span>
-            <button
-              className="fp-close"
-              onClick={() => { setMode("list"); setEditing(null); }}
-            >
+            <span>{mode === "edit" ? `تعديل: ${editing?.name}` : "إضافة عطر جديد"}</span>
+            <button className="fp-close" onClick={() => { setMode("list"); setEditing(null); }}>
               <X size={18} />
             </button>
           </div>
