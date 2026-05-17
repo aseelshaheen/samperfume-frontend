@@ -53,7 +53,6 @@ const FRAGRANCE_FAMILY_LABELS = {
   other:    "أخرى",
 };
 
-// Shared handler — blocks arrow-key ±1 on price inputs
 const blockArrows = (e) => {
   if (e.key === "ArrowUp" || e.key === "ArrowDown") e.preventDefault();
 };
@@ -74,47 +73,28 @@ function TaqseemSizes({ sizes, onChange }) {
       </div>
       {sizes.map((s, i) => (
         <div key={i} className="ts-row">
-          <input
-            className="af-input"
-            type="number"
-            placeholder="مل"
-            value={s.ml ?? ""}
-            onChange={(e) => update(i, "ml", e.target.value)}
-          />
-          <input
-            className="af-input"
-            type="text"
-            inputMode="decimal"
-            placeholder="₪ السعر"
-            value={s.price ?? ""}
-            onChange={(e) => update(i, "price", e.target.value)}
-            onKeyDown={blockArrows}
-          />
-          <input
-            className="af-input"
-            type="number"
-            placeholder="مخزون"
-            value={s.stock ?? ""}
-            onChange={(e) => update(i, "stock", e.target.value)}
-          />
-          <button type="button" className="ts-del" onClick={() => remove(i)}>
-            <X size={12} />
-          </button>
+          <input className="af-input" type="number" placeholder="مل" value={s.ml ?? ""} onChange={(e) => update(i, "ml", e.target.value)} />
+          <input className="af-input" type="text" inputMode="decimal" placeholder="₪ السعر" value={s.price ?? ""} onChange={(e) => update(i, "price", e.target.value)} onKeyDown={blockArrows} />
+          <input className="af-input" type="number" placeholder="مخزون" value={s.stock ?? ""} onChange={(e) => update(i, "stock", e.target.value)} />
+          <button type="button" className="ts-del" onClick={() => remove(i)}><X size={12} /></button>
         </div>
       ))}
-      {sizes.length === 0 && (
-        <p style={{ fontSize: "0.78rem", color: "#bbb" }}>لا توجد أحجام مضافة</p>
-      )}
+      {sizes.length === 0 && <p style={{ fontSize: "0.78rem", color: "#bbb" }}>لا توجد أحجام مضافة</p>}
     </div>
   );
 }
 
 function buildInitial(perfume) {
   if (!perfume) return { ...EMPTY };
-  const orig = perfume.fullBottle?.price ?? "";
+
+  const orig     = perfume.fullBottle?.price ?? "";
+  // BUG FIX: derive the discounted price from the stored discount %, don't
+  // re-derive the % from a freshly-computed discounted price — that causes
+  // floating-point drift every time the edit form opens.
+  const discount = perfume.discount ?? 0;
   const disc =
-    perfume.discount > 0 && orig !== ""
-      ? orig - (orig * Math.round(perfume.discount)) / 100
+    discount > 0 && orig !== ""
+      ? String(+(orig * (1 - discount / 100)).toFixed(2))
       : "";
 
   let fragranceFamily = [];
@@ -131,7 +111,7 @@ function buildInitial(perfume) {
     nameAr:          perfume.nameAr      ?? "",
     brand:           perfume.brand       ?? "",
     description:     perfume.description ?? "",
-    discount:        perfume.discount    ?? 0,
+    discount,
     fragranceFamily,
     fullBottle: {
       price:          perfume.fullBottle?.price          ?? "",
@@ -152,7 +132,7 @@ function buildInitial(perfume) {
         ? perfume.images.map((img) => ({ ...img, url: img.url ?? "" }))
         : [{ url: "", isMain: true }],
     _originalPrice:   orig !== "" ? String(orig) : "",
-    _discountedPrice: disc !== "" ? String(disc) : "",
+    _discountedPrice: disc,
   };
 }
 
@@ -176,31 +156,31 @@ function PerfumeForm({ initial, onSave, onCancel, saving }) {
     set("fragranceFamily", selected ? current.filter((f) => f !== value) : [...current, value]);
   };
 
-const handleOriginalPrice = (rawVal) => {
-  const orig = parseFloat(rawVal);
-  const disc = parseFloat(form._discountedPrice);
-  // Use precise percentage, not Math.round
-  const pct =
-    !isNaN(orig) && orig > 0 && !isNaN(disc) && disc >= 0 && disc < orig
-      ? +((( orig - disc) / orig) * 100).toFixed(4)
-      : 0;
-  setForm((prev) => ({
-    ...prev,
-    _originalPrice: rawVal,
-    fullBottle: { ...prev.fullBottle, price: rawVal },
-    discount: pct,
-  }));
-};
+  // BUG FIX: store discount as a rounded integer so it never shows decimals.
+  const handleOriginalPrice = (rawVal) => {
+    const orig = parseFloat(rawVal);
+    const disc = parseFloat(form._discountedPrice);
+    const pct =
+      !isNaN(orig) && orig > 0 && !isNaN(disc) && disc >= 0 && disc < orig
+        ? Math.round(((orig - disc) / orig) * 100)
+        : 0;
+    setForm((prev) => ({
+      ...prev,
+      _originalPrice: rawVal,
+      fullBottle: { ...prev.fullBottle, price: rawVal },
+      discount: pct,
+    }));
+  };
 
-const handleDiscountedPrice = (rawVal) => {
-  const orig = parseFloat(form._originalPrice);
-  const disc = parseFloat(rawVal);
-  const pct =
-    !isNaN(orig) && orig > 0 && !isNaN(disc) && disc >= 0 && disc < orig
-      ? +((( orig - disc) / orig) * 100).toFixed(4)
-      : 0;
-  setForm((prev) => ({ ...prev, _discountedPrice: rawVal, discount: pct }));
-};
+  const handleDiscountedPrice = (rawVal) => {
+    const orig = parseFloat(form._originalPrice);
+    const disc = parseFloat(rawVal);
+    const pct =
+      !isNaN(orig) && orig > 0 && !isNaN(disc) && disc >= 0 && disc < orig
+        ? Math.round(((orig - disc) / orig) * 100)
+        : 0;
+    setForm((prev) => ({ ...prev, _discountedPrice: rawVal, discount: pct }));
+  };
 
   const showFull    = ["full_only", "both"].includes(form.availability);
   const showTaqseem = ["taqseem_only", "both"].includes(form.availability);
@@ -224,40 +204,18 @@ const handleDiscountedPrice = (rawVal) => {
       <div className="af-row-2">
         <div className="af-field">
           <label className="af-label">الاسم بالإنجليزية *</label>
-          <input
-            className="af-input"
-            required
-            value={form.name}
-            onChange={(e) => set("name", e.target.value)}
-            placeholder="Bleu de Chanel"
-            dir="ltr"
-            style={{ textAlign: "left" }}
-          />
+          <input className="af-input" required value={form.name} onChange={(e) => set("name", e.target.value)} placeholder="Bleu de Chanel" dir="ltr" style={{ textAlign: "left" }} />
         </div>
         <div className="af-field">
           <label className="af-label">الاسم بالعربية</label>
-          <input
-            className="af-input"
-            value={form.nameAr}
-            onChange={(e) => set("nameAr", e.target.value)}
-            placeholder="بلو دي شانيل"
-            dir="rtl"
-          />
+          <input className="af-input" value={form.nameAr} onChange={(e) => set("nameAr", e.target.value)} placeholder="بلو دي شانيل" dir="rtl" />
         </div>
       </div>
 
       {/* ── Brand ── */}
       <div className="af-field">
         <label className="af-label">البراند *</label>
-        <input
-          className="af-input"
-          required
-          value={form.brand}
-          onChange={(e) => set("brand", e.target.value)}
-          placeholder="Chanel"
-          dir="ltr"
-          style={{ textAlign: "left" }}
-        />
+        <input className="af-input" required value={form.brand} onChange={(e) => set("brand", e.target.value)} placeholder="Chanel" dir="ltr" style={{ textAlign: "left" }} />
       </div>
 
       {/* ── Type + Gender ── */}
@@ -279,7 +237,7 @@ const handleDiscountedPrice = (rawVal) => {
         </div>
       </div>
 
-      {/* ── Fragrance Family (multi-select chips) ── */}
+      {/* ── Fragrance Family ── */}
       <div className="af-field">
         <label className="af-label">
           عائلة العطر
@@ -293,12 +251,7 @@ const handleDiscountedPrice = (rawVal) => {
           {Object.entries(FRAGRANCE_FAMILY_LABELS).map(([value, label]) => {
             const selected = (form.fragranceFamily ?? []).includes(value);
             return (
-              <button
-                key={value}
-                type="button"
-                className={`frag-chip ${selected ? "frag-chip--on" : ""}`}
-                onClick={() => toggleFragrance(value)}
-              >
+              <button key={value} type="button" className={`frag-chip ${selected ? "frag-chip--on" : ""}`} onClick={() => toggleFragrance(value)}>
                 {label}
               </button>
             );
@@ -309,13 +262,7 @@ const handleDiscountedPrice = (rawVal) => {
       {/* ── Description ── */}
       <div className="af-field">
         <label className="af-label">الوصف *</label>
-        <textarea
-          className="af-textarea"
-          required
-          value={form.description}
-          onChange={(e) => set("description", e.target.value)}
-          placeholder="وصف العطر، مكوناته، رائحته..."
-        />
+        <textarea className="af-textarea" required value={form.description} onChange={(e) => set("description", e.target.value)} placeholder="وصف العطر، مكوناته، رائحته..." />
       </div>
 
       {/* ── Availability ── */}
@@ -335,21 +282,11 @@ const handleDiscountedPrice = (rawVal) => {
           <div className="af-row-2">
             <div className="af-field">
               <label className="af-label">المخزون</label>
-              <input
-                className="af-input"
-                type="number"
-                value={form.fullBottle.stock}
-                onChange={(e) => set("fullBottle.stock", e.target.value)}
-              />
+              <input className="af-input" type="number" value={form.fullBottle.stock} onChange={(e) => set("fullBottle.stock", e.target.value)} />
             </div>
             <div className="af-field">
               <label className="af-label">الحجم (مل)</label>
-              <input
-                className="af-input"
-                type="number"
-                value={form.fullBottle.size_ml}
-                onChange={(e) => set("fullBottle.size_ml", e.target.value)}
-              />
+              <input className="af-input" type="number" value={form.fullBottle.size_ml} onChange={(e) => set("fullBottle.size_ml", e.target.value)} />
             </div>
           </div>
         </div>
@@ -361,18 +298,9 @@ const handleDiscountedPrice = (rawVal) => {
           <div className="af-sub-title">التقسيمات</div>
           <div className="af-field" style={{ marginBottom: "0.8rem" }}>
             <label className="af-label">حجم القارورة الأصلية (مل)</label>
-            <input
-              className="af-input"
-              type="number"
-              value={form.taqseem.sourceBottle_ml}
-              onChange={(e) => set("taqseem.sourceBottle_ml", e.target.value)}
-              style={{ maxWidth: 150 }}
-            />
+            <input className="af-input" type="number" value={form.taqseem.sourceBottle_ml} onChange={(e) => set("taqseem.sourceBottle_ml", e.target.value)} style={{ maxWidth: 150 }} />
           </div>
-          <TaqseemSizes
-            sizes={form.taqseem.sizes}
-            onChange={(sizes) => setForm((p) => ({ ...p, taqseem: { ...p.taqseem, sizes } }))}
-          />
+          <TaqseemSizes sizes={form.taqseem.sizes} onChange={(sizes) => setForm((p) => ({ ...p, taqseem: { ...p.taqseem, sizes } }))} />
         </div>
       )}
 
@@ -382,44 +310,18 @@ const handleDiscountedPrice = (rawVal) => {
         <div className="af-row-2">
           <div className="af-field">
             <label className="af-label">السعر الأصلي (₪) *</label>
-            <input
-              className="af-input"
-              type="text"
-              inputMode="decimal"
-              required={showFull}
-              value={form._originalPrice}
-              onChange={(e) => handleOriginalPrice(e.target.value)}
-              onKeyDown={blockArrows}
-              placeholder="مثال: 200"
-            />
+            <input className="af-input" type="text" inputMode="decimal" required={showFull} value={form._originalPrice} onChange={(e) => handleOriginalPrice(e.target.value)} onKeyDown={blockArrows} placeholder="مثال: 200" />
           </div>
           <div className="af-field">
             <label className="af-label">السعر بعد الخصم (₪)</label>
-            <input
-              className="af-input"
-              type="text"
-              inputMode="decimal"
-              value={form._discountedPrice}
-              onChange={(e) => handleDiscountedPrice(e.target.value)}
-              onKeyDown={blockArrows}
-              placeholder="اتركه فارغاً إن لم يكن هناك خصم"
-            />
+            <input className="af-input" type="text" inputMode="decimal" value={form._discountedPrice} onChange={(e) => handleDiscountedPrice(e.target.value)} onKeyDown={blockArrows} placeholder="اتركه فارغاً إن لم يكن هناك خصم" />
           </div>
         </div>
 
         {/* ── Wholesale ── */}
         <div className="af-field" style={{ marginTop: "0.85rem" }}>
           <label className="af-label">سعر الجملة (₪)</label>
-          <input
-            className="af-input"
-            type="text"
-            inputMode="decimal"
-            value={form.fullBottle.wholesalePrice}
-            onChange={(e) => set("fullBottle.wholesalePrice", e.target.value)}
-            onKeyDown={blockArrows}
-            placeholder="اتركه فارغاً إن لم يكن للبيع بالجملة"
-            style={{ maxWidth: 220 }}
-          />
+          <input className="af-input" type="text" inputMode="decimal" value={form.fullBottle.wholesalePrice} onChange={(e) => set("fullBottle.wholesalePrice", e.target.value)} onKeyDown={blockArrows} placeholder="اتركه فارغاً إن لم يكن للبيع بالجملة" style={{ maxWidth: 220 }} />
           {showMargin && (
             <div style={{ fontSize: "0.78rem", color: "#888", marginTop: "0.25rem" }}>
               هامش الربح:{" "}
@@ -429,12 +331,13 @@ const handleDiscountedPrice = (rawVal) => {
           )}
         </div>
 
+        {/* BUG FIX: use Math.round(form.discount) so it always shows a clean integer */}
         {form.discount > 0 ? (
           <div style={{ fontSize: "0.8rem", color: "#2e7d5a", fontWeight: 700, marginTop: "0.5rem", display: "flex", alignItems: "center", gap: "0.35rem" }}>
             <span>✓</span>
             <span>
-              نسبة الخصم: {form.discount}% · السعر المعروض: ₪
-              {Math.round(parseFloat(form._originalPrice) - (parseFloat(form._originalPrice) * form.discount) / 100)}
+              نسبة الخصم: {Math.round(form.discount)}% · السعر المعروض: ₪
+              {Math.round(parseFloat(form._originalPrice) * (1 - form.discount / 100))}
             </span>
           </div>
         ) : (
@@ -460,33 +363,17 @@ const handleDiscountedPrice = (rawVal) => {
         <div className="af-sub-title">روابط الصور</div>
         {form.images.map((img, i) => (
           <div key={i} className="img-row">
-            <input
-              className="af-input"
-              placeholder={`رابط الصورة ${i + 1}`}
-              value={img.url}
-              onChange={(e) =>
-                setForm((p) => ({
-                  ...p,
-                  images: p.images.map((im, idx) => idx === i ? { ...im, url: e.target.value } : im),
-                }))
-              }
+            <input className="af-input" placeholder={`رابط الصورة ${i + 1}`} value={img.url}
+              onChange={(e) => setForm((p) => ({ ...p, images: p.images.map((im, idx) => idx === i ? { ...im, url: e.target.value } : im) }))}
             />
             {i > 0 && (
-              <button
-                type="button"
-                className="ts-del"
-                onClick={() => setForm((p) => ({ ...p, images: p.images.filter((_, idx) => idx !== i) }))}
-              >
+              <button type="button" className="ts-del" onClick={() => setForm((p) => ({ ...p, images: p.images.filter((_, idx) => idx !== i) }))}>
                 <X size={12} />
               </button>
             )}
           </div>
         ))}
-        <button
-          type="button"
-          className="ts-add"
-          onClick={() => setForm((p) => ({ ...p, images: [...p.images, { url: "", isMain: false }] }))}
-        >
+        <button type="button" className="ts-add" onClick={() => setForm((p) => ({ ...p, images: [...p.images, { url: "", isMain: false }] }))}>
           <Plus size={12} /> صورة
         </button>
       </div>
@@ -587,8 +474,8 @@ export default function AdminPerfumes() {
     const base = p.fullBottle?.price;
     if (!base) return "—";
     if (p.discount > 0) {
-      const final = Math.round(base - (base * p.discount) / 100);
-      return `₪${final} (-${p.discount}%)`;
+      const final = Math.round(base * (1 - p.discount / 100));
+      return `₪${final} (-${Math.round(p.discount)}%)`;
     }
     return `₪${Math.round(base)}`;
   };
@@ -712,11 +599,7 @@ export default function AdminPerfumes() {
             <div className="pm-actions">
               <div className="pm-search">
                 <Search size={14} className="pm-search-icon" />
-                <input
-                  placeholder="بحث بالاسم أو البراند..."
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                />
+                <input placeholder="بحث بالاسم أو البراند..." value={search} onChange={(e) => setSearch(e.target.value)} />
               </div>
               <button className="add-btn" onClick={() => { setEditing(null); setMode("add"); }}>
                 <Plus size={15} /> إضافة عطر
@@ -784,47 +667,28 @@ export default function AdminPerfumes() {
                         </td>
                         <td>
                           <span className="pm-name">{p.name}</span>
-                          {p.nameAr && p.nameAr.trim() !== "" && (
-                            <span className="pm-name-ar">{p.nameAr}</span>
-                          )}
+                          {p.nameAr && p.nameAr.trim() !== "" && <span className="pm-name-ar">{p.nameAr}</span>}
                         </td>
                         <td><span className="pm-brand">{p.brand}</span></td>
-                        <td>
-                          <span style={{ fontSize: "0.76rem", color: "#888" }}>
-                            {p.perfumeType === "arabic" ? "عربي" : "فرنسي"}
-                          </span>
-                        </td>
+                        <td><span style={{ fontSize: "0.76rem", color: "#888" }}>{p.perfumeType === "arabic" ? "عربي" : "فرنسي"}</span></td>
                         <td><span className={`avail-badge ${avClass}`}>{avLabel}</span></td>
-                        <td>
-                          <span style={{ color: "#452829", fontWeight: 700, fontSize: "0.8rem" }}>
-                            {displayPrice(p)}
-                          </span>
-                        </td>
+                        <td><span style={{ color: "#452829", fontWeight: 700, fontSize: "0.8rem" }}>{displayPrice(p)}</span></td>
                         <td>
                           {p.fullBottle?.wholesalePrice
                             ? <span className="wholesale-price">₪{p.fullBottle.wholesalePrice}</span>
                             : <span style={{ color: "#ccc", fontSize: "0.8rem" }}>—</span>
                           }
                         </td>
-                        <td>
-                          <span style={{ color: "#888", fontSize: "0.8rem" }}>{p.fullBottle?.stock ?? 0}</span>
-                        </td>
+                        <td><span style={{ color: "#888", fontSize: "0.8rem" }}>{p.fullBottle?.stock ?? 0}</span></td>
                         <td>
                           <button className="toggle-btn" onClick={() => handleToggle(p)}>
-                            {p.isActive
-                              ? <ToggleRight size={22} color="#2e7d5a" />
-                              : <ToggleLeft  size={22} color="#ccc" />
-                            }
+                            {p.isActive ? <ToggleRight size={22} color="#2e7d5a" /> : <ToggleLeft size={22} color="#ccc" />}
                           </button>
                         </td>
                         <td>
                           <div style={{ display: "flex", gap: "0.2rem" }}>
-                            <button className="pm-edit" onClick={() => { setEditing(p); setMode("edit"); }}>
-                              <Pencil size={14} />
-                            </button>
-                            <button className="pm-del" onClick={() => handleDelete(p._id)}>
-                              <Trash2 size={14} />
-                            </button>
+                            <button className="pm-edit" onClick={() => { setEditing(p); setMode("edit"); }}><Pencil size={14} /></button>
+                            <button className="pm-del" onClick={() => handleDelete(p._id)}><Trash2 size={14} /></button>
                           </div>
                         </td>
                       </tr>
@@ -839,9 +703,7 @@ export default function AdminPerfumes() {
         <div className="form-panel">
           <div className="form-panel-title">
             <span>{mode === "edit" ? `تعديل: ${editing?.name}` : "إضافة عطر جديد"}</span>
-            <button className="fp-close" onClick={() => { setMode("list"); setEditing(null); }}>
-              <X size={18} />
-            </button>
+            <button className="fp-close" onClick={() => { setMode("list"); setEditing(null); }}><X size={18} /></button>
           </div>
           <PerfumeForm
             initial={editing ?? null}
