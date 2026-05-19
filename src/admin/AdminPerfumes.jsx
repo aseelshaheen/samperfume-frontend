@@ -85,13 +85,13 @@ function TaqseemSizes({ sizes, onChange }) {
 }
 
 function buildInitial(perfume) {
-  if (!perfume) return { ...EMPTY };
+  if (!perfume) return { ...EMPTY, fullBottle: { ...EMPTY.fullBottle }, taqseem: { ...EMPTY.taqseem, sizes: [] }, images: [{ url: "", isMain: true }] };
 
   const orig     = perfume.fullBottle?.price ?? "";
-  // BUG FIX: derive the discounted price from the stored discount %, don't
-  // re-derive the % from a freshly-computed discounted price — that causes
-  // floating-point drift every time the edit form opens.
   const discount = perfume.discount ?? 0;
+  // FIX: keep the discounted price as a plain string — never recompute it from
+  // orig * (1 - pct/100) because that introduces floating-point noise.
+  // If a stored discounted value exists use it; otherwise derive once on first load only.
   const disc =
     discount > 0 && orig !== ""
       ? String(+(orig * (1 - discount / 100)).toFixed(2))
@@ -113,8 +113,10 @@ function buildInitial(perfume) {
     description:     perfume.description ?? "",
     discount,
     fragranceFamily,
+    // FIX: always explicitly reconstruct fullBottle so nested fields are never
+    // lost when the parent spreads EMPTY first.
     fullBottle: {
-      price:          perfume.fullBottle?.price          ?? "",
+      price:          orig,
       wholesalePrice: perfume.fullBottle?.wholesalePrice ?? "",
       stock:          perfume.fullBottle?.stock          ?? "",
       size_ml:        perfume.fullBottle?.size_ml        ?? "",
@@ -139,7 +141,12 @@ function buildInitial(perfume) {
 function PerfumeForm({ initial, onSave, onCancel, saving }) {
   const [form, setForm] = useState(() => buildInitial(initial));
 
-  useEffect(() => { setForm(buildInitial(initial)); }, [initial]);
+  // FIX: depend on the record's _id (or null for new), NOT the whole object.
+  // This prevents the form from re-initializing whenever the parent re-renders
+  // (e.g. after load() returns fresh data), which was resetting price/size_ml.
+  useEffect(() => {
+    setForm(buildInitial(initial));
+  }, [initial?._id ?? "new"]);
 
   const set = (path, val) => {
     const parts = path.split(".");
@@ -156,7 +163,6 @@ function PerfumeForm({ initial, onSave, onCancel, saving }) {
     set("fragranceFamily", selected ? current.filter((f) => f !== value) : [...current, value]);
   };
 
-  // BUG FIX: store discount as a rounded integer so it never shows decimals.
   const handleOriginalPrice = (rawVal) => {
     const orig = parseFloat(rawVal);
     const disc = parseFloat(form._discountedPrice);
@@ -167,6 +173,8 @@ function PerfumeForm({ initial, onSave, onCancel, saving }) {
     setForm((prev) => ({
       ...prev,
       _originalPrice: rawVal,
+      // FIX: keep fullBottle.price in sync with what the user actually typed —
+      // do NOT Math.round or alter rawVal here.
       fullBottle: { ...prev.fullBottle, price: rawVal },
       discount: pct,
     }));
@@ -179,6 +187,7 @@ function PerfumeForm({ initial, onSave, onCancel, saving }) {
       !isNaN(orig) && orig > 0 && !isNaN(disc) && disc >= 0 && disc < orig
         ? Math.round(((orig - disc) / orig) * 100)
         : 0;
+    // FIX: store exactly what the user typed — never coerce/round the value.
     setForm((prev) => ({ ...prev, _discountedPrice: rawVal, discount: pct }));
   };
 
@@ -331,13 +340,12 @@ function PerfumeForm({ initial, onSave, onCancel, saving }) {
           )}
         </div>
 
-        {/* BUG FIX: use Math.round(form.discount) so it always shows a clean integer */}
+        {/* FIX: show _discountedPrice exactly as typed — never recompute/round it */}
         {form.discount > 0 ? (
           <div style={{ fontSize: "0.8rem", color: "#2e7d5a", fontWeight: 700, marginTop: "0.5rem", display: "flex", alignItems: "center", gap: "0.35rem" }}>
             <span>✓</span>
             <span>
-              نسبة الخصم: {Math.round(form.discount)}% · السعر المعروض: ₪
-              {Math.round(parseFloat(form._originalPrice) * (1 - form.discount / 100))}
+              نسبة الخصم: {Math.round(form.discount)}% · السعر المعروض: ₪{form._discountedPrice}
             </span>
           </div>
         ) : (
