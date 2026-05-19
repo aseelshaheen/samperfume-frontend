@@ -102,10 +102,9 @@ function buildInitial(perfume) {
 
   const orig = perfume.fullBottle?.price ?? "";
 
-  // ✅ READ the stored discounted price — never recompute it
   const storedDisc = perfume.fullBottle?.discountedPrice;
   const discStr =
-    storedDisc !== undefined && storedDisc !== null && storedDisc !== ""
+    storedDisc !== undefined && storedDisc !== null
       ? String(storedDisc)
       : "";
 
@@ -511,12 +510,24 @@ export default function AdminPerfumes() {
 
   useEffect(() => { load(); }, []);
 
-  const handleSave = async (form) => {
-    setSaving(true);
-    try {
-      const url    = editing ? `${API}/perfumes/${editing._id}` : `${API}/perfumes`;
-      const method = editing ? "PUT" : "POST";
-      const res    = await fetch(url, { method, headers: authHeaders(), body: JSON.stringify(form) });
+const handleSave = async (form) => {
+  setSaving(true);
+  try {
+    // Coerce fullBottle numbers so Mongoose accepts them
+    const payload = {
+      ...form,
+      fullBottle: {
+        ...form.fullBottle,
+        price:           form.fullBottle.price           !== "" ? Number(form.fullBottle.price)           : undefined,
+        wholesalePrice:  form.fullBottle.wholesalePrice  !== "" ? Number(form.fullBottle.wholesalePrice)  : undefined,
+        stock:           form.fullBottle.stock           !== "" ? Number(form.fullBottle.stock)           : undefined,
+        size_ml:         form.fullBottle.size_ml         !== "" ? Number(form.fullBottle.size_ml)         : undefined,
+        discountedPrice: form.fullBottle.discountedPrice !== "" ? Number(form.fullBottle.discountedPrice) : undefined,
+      },
+    };
+    const url    = editing ? `${API}/perfumes/${editing._id}` : `${API}/perfumes`;
+    const method = editing ? "PUT" : "POST";
+    const res    = await fetch(url, { method, headers: authHeaders(), body: JSON.stringify(payload) });
       const data   = await res.json();
       if (data.success) {
         showToast(editing ? "تم التعديل" : "تمت الإضافة");
