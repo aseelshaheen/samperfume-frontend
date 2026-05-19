@@ -27,7 +27,7 @@ const EMPTY = {
   fragranceFamily: [],
   description: "",
   availability: "full_only",
-  fullBottle: { price: "", wholesalePrice: "", stock: "", size_ml: "" },
+  fullBottle: { price: "", wholesalePrice: "", stock: "", size_ml: "", discountedPrice: "" },
   taqseem: { sourceBottle_ml: "", sizes: [] },
   discount: 0,
   _originalPrice: "",
@@ -84,18 +84,39 @@ function TaqseemSizes({ sizes, onChange }) {
   );
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// buildInitial
+// KEY FIX: we NEVER recompute the discounted price from orig*(1-pct/100).
+// We read fullBottle.discountedPrice that was stored by the backend directly.
+// This is the only source of truth. The percentage is only used for display.
+// ─────────────────────────────────────────────────────────────────────────────
 function buildInitial(perfume) {
-  if (!perfume) return { ...EMPTY, fullBottle: { ...EMPTY.fullBottle }, taqseem: { ...EMPTY.taqseem, sizes: [] }, images: [{ url: "", isMain: true }] };
+  if (!perfume) {
+    return {
+      ...EMPTY,
+      fullBottle: { ...EMPTY.fullBottle },
+      taqseem: { ...EMPTY.taqseem, sizes: [] },
+      images: [{ url: "", isMain: true }],
+    };
+  }
 
-  const orig     = perfume.fullBottle?.price ?? "";
-  const discount = perfume.discount ?? 0;
-  // FIX: keep the discounted price as a plain string — never recompute it from
-  // orig * (1 - pct/100) because that introduces floating-point noise.
-  // If a stored discounted value exists use it; otherwise derive once on first load only.
-  const disc =
-    discount > 0 && orig !== ""
-      ? String(+(orig * (1 - discount / 100)).toFixed(2))
+  const orig = perfume.fullBottle?.price ?? "";
+
+  // ✅ READ the stored discounted price — never recompute it
+  const storedDisc = perfume.fullBottle?.discountedPrice;
+  const discStr =
+    storedDisc !== undefined && storedDisc !== null && storedDisc !== ""
+      ? String(storedDisc)
       : "";
+
+  // Recompute percentage purely for display, from the two stored numbers
+  const origNum = parseFloat(orig);
+  const discNum = parseFloat(discStr);
+  const pct =
+    !isNaN(origNum) && origNum > 0 &&
+    !isNaN(discNum) && discNum >= 0 && discNum < origNum
+      ? Math.round(((origNum - discNum) / origNum) * 100)
+      : 0;
 
   let fragranceFamily = [];
   if (Array.isArray(perfume.fragranceFamily)) {
@@ -111,15 +132,14 @@ function buildInitial(perfume) {
     nameAr:          perfume.nameAr      ?? "",
     brand:           perfume.brand       ?? "",
     description:     perfume.description ?? "",
-    discount,
+    discount:        pct,
     fragranceFamily,
-    // FIX: always explicitly reconstruct fullBottle so nested fields are never
-    // lost when the parent spreads EMPTY first.
     fullBottle: {
-      price:          orig,
-      wholesalePrice: perfume.fullBottle?.wholesalePrice ?? "",
-      stock:          perfume.fullBottle?.stock          ?? "",
-      size_ml:        perfume.fullBottle?.size_ml        ?? "",
+      price:           orig,
+      wholesalePrice:  perfume.fullBottle?.wholesalePrice  ?? "",
+      stock:           perfume.fullBottle?.stock           ?? "",
+      size_ml:         perfume.fullBottle?.size_ml         ?? "",
+      discountedPrice: discStr, // ✅ stored as-is
     },
     taqseem: {
       sourceBottle_ml: perfume.taqseem?.sourceBottle_ml ?? "",
@@ -134,16 +154,13 @@ function buildInitial(perfume) {
         ? perfume.images.map((img) => ({ ...img, url: img.url ?? "" }))
         : [{ url: "", isMain: true }],
     _originalPrice:   orig !== "" ? String(orig) : "",
-    _discountedPrice: disc,
+    _discountedPrice: discStr, // ✅ from stored value, not recomputed
   };
 }
 
 function PerfumeForm({ initial, onSave, onCancel, saving }) {
   const [form, setForm] = useState(() => buildInitial(initial));
 
-  // FIX: depend on the record's _id (or null for new), NOT the whole object.
-  // This prevents the form from re-initializing whenever the parent re-renders
-  // (e.g. after load() returns fresh data), which was resetting price/size_ml.
   useEffect(() => {
     setForm(buildInitial(initial));
   }, [initial?._id ?? "new"]);
@@ -163,6 +180,7 @@ function PerfumeForm({ initial, onSave, onCancel, saving }) {
     set("fragranceFamily", selected ? current.filter((f) => f !== value) : [...current, value]);
   };
 
+  // ✅ When original price changes: recalc pct from stored disc, keep disc string untouched
   const handleOriginalPrice = (rawVal) => {
     const orig = parseFloat(rawVal);
     const disc = parseFloat(form._discountedPrice);
@@ -173,13 +191,17 @@ function PerfumeForm({ initial, onSave, onCancel, saving }) {
     setForm((prev) => ({
       ...prev,
       _originalPrice: rawVal,
-      // FIX: keep fullBottle.price in sync with what the user actually typed —
-      // do NOT Math.round or alter rawVal here.
-      fullBottle: { ...prev.fullBottle, price: rawVal },
       discount: pct,
+      fullBottle: {
+        ...prev.fullBottle,
+        price: rawVal,
+        // Keep discountedPrice exactly as it was — don't touch it
+        discountedPrice: prev.fullBottle.discountedPrice,
+      },
     }));
   };
 
+  // ✅ When discounted price changes: store EXACTLY what the user typed, no rounding, no coercion
   const handleDiscountedPrice = (rawVal) => {
     const orig = parseFloat(form._originalPrice);
     const disc = parseFloat(rawVal);
@@ -187,8 +209,15 @@ function PerfumeForm({ initial, onSave, onCancel, saving }) {
       !isNaN(orig) && orig > 0 && !isNaN(disc) && disc >= 0 && disc < orig
         ? Math.round(((orig - disc) / orig) * 100)
         : 0;
-    // FIX: store exactly what the user typed — never coerce/round the value.
-    setForm((prev) => ({ ...prev, _discountedPrice: rawVal, discount: pct }));
+    setForm((prev) => ({
+      ...prev,
+      _discountedPrice: rawVal,   // ✅ raw string, no modification
+      discount: pct,
+      fullBottle: {
+        ...prev.fullBottle,
+        discountedPrice: rawVal,  // ✅ persisted to backend payload as-is
+      },
+    }));
   };
 
   const showFull    = ["full_only", "both"].includes(form.availability);
@@ -196,6 +225,7 @@ function PerfumeForm({ initial, onSave, onCancel, saving }) {
 
   const handleSubmit = (e) => {
     e.preventDefault();
+    // Strip the UI-only helper fields before sending to backend
     const { _originalPrice, _discountedPrice, ...payload } = form;
     onSave(payload);
   };
@@ -319,18 +349,44 @@ function PerfumeForm({ initial, onSave, onCancel, saving }) {
         <div className="af-row-2">
           <div className="af-field">
             <label className="af-label">السعر الأصلي (₪) *</label>
-            <input className="af-input" type="text" inputMode="decimal" required={showFull} value={form._originalPrice} onChange={(e) => handleOriginalPrice(e.target.value)} onKeyDown={blockArrows} placeholder="مثال: 200" />
+            <input
+              className="af-input"
+              type="text"
+              inputMode="decimal"
+              required={showFull}
+              value={form._originalPrice}
+              onChange={(e) => handleOriginalPrice(e.target.value)}
+              onKeyDown={blockArrows}
+              placeholder="مثال: 200"
+            />
           </div>
           <div className="af-field">
             <label className="af-label">السعر بعد الخصم (₪)</label>
-            <input className="af-input" type="text" inputMode="decimal" value={form._discountedPrice} onChange={(e) => handleDiscountedPrice(e.target.value)} onKeyDown={blockArrows} placeholder="اتركه فارغاً إن لم يكن هناك خصم" />
+            <input
+              className="af-input"
+              type="text"
+              inputMode="decimal"
+              value={form._discountedPrice}
+              onChange={(e) => handleDiscountedPrice(e.target.value)}
+              onKeyDown={blockArrows}
+              placeholder="اتركه فارغاً إن لم يكن هناك خصم"
+            />
           </div>
         </div>
 
         {/* ── Wholesale ── */}
         <div className="af-field" style={{ marginTop: "0.85rem" }}>
           <label className="af-label">سعر الجملة (₪)</label>
-          <input className="af-input" type="text" inputMode="decimal" value={form.fullBottle.wholesalePrice} onChange={(e) => set("fullBottle.wholesalePrice", e.target.value)} onKeyDown={blockArrows} placeholder="اتركه فارغاً إن لم يكن للبيع بالجملة" style={{ maxWidth: 220 }} />
+          <input
+            className="af-input"
+            type="text"
+            inputMode="decimal"
+            value={form.fullBottle.wholesalePrice}
+            onChange={(e) => set("fullBottle.wholesalePrice", e.target.value)}
+            onKeyDown={blockArrows}
+            placeholder="اتركه فارغاً إن لم يكن للبيع بالجملة"
+            style={{ maxWidth: 220 }}
+          />
           {showMargin && (
             <div style={{ fontSize: "0.78rem", color: "#888", marginTop: "0.25rem" }}>
               هامش الربح:{" "}
@@ -340,7 +396,7 @@ function PerfumeForm({ initial, onSave, onCancel, saving }) {
           )}
         </div>
 
-        {/* FIX: show _discountedPrice exactly as typed — never recompute/round it */}
+        {/* ✅ Display exactly what was typed — never recomputed */}
         {form.discount > 0 ? (
           <div style={{ fontSize: "0.8rem", color: "#2e7d5a", fontWeight: 700, marginTop: "0.5rem", display: "flex", alignItems: "center", gap: "0.35rem" }}>
             <span>✓</span>
@@ -371,17 +427,45 @@ function PerfumeForm({ initial, onSave, onCancel, saving }) {
         <div className="af-sub-title">روابط الصور</div>
         {form.images.map((img, i) => (
           <div key={i} className="img-row">
-            <input className="af-input" placeholder={`رابط الصورة ${i + 1}`} value={img.url}
-              onChange={(e) => setForm((p) => ({ ...p, images: p.images.map((im, idx) => idx === i ? { ...im, url: e.target.value } : im) }))}
+            <input
+              className="af-input"
+              placeholder={`رابط الصورة ${i + 1}`}
+              value={img.url}
+              onChange={(e) =>
+                setForm((p) => ({
+                  ...p,
+                  images: p.images.map((im, idx) =>
+                    idx === i ? { ...im, url: e.target.value } : im
+                  ),
+                }))
+              }
             />
             {i > 0 && (
-              <button type="button" className="ts-del" onClick={() => setForm((p) => ({ ...p, images: p.images.filter((_, idx) => idx !== i) }))}>
+              <button
+                type="button"
+                className="ts-del"
+                onClick={() =>
+                  setForm((p) => ({
+                    ...p,
+                    images: p.images.filter((_, idx) => idx !== i),
+                  }))
+                }
+              >
                 <X size={12} />
               </button>
             )}
           </div>
         ))}
-        <button type="button" className="ts-add" onClick={() => setForm((p) => ({ ...p, images: [...p.images, { url: "", isMain: false }] }))}>
+        <button
+          type="button"
+          className="ts-add"
+          onClick={() =>
+            setForm((p) => ({
+              ...p,
+              images: [...p.images, { url: "", isMain: false }],
+            }))
+          }
+        >
           <Plus size={12} /> صورة
         </button>
       </div>
@@ -389,7 +473,9 @@ function PerfumeForm({ initial, onSave, onCancel, saving }) {
       <div className="af-actions">
         <button type="button" className="af-cancel" onClick={onCancel}>إلغاء</button>
         <button type="submit" className="af-save" disabled={saving}>
-          {saving ? <Loader2 size={14} style={{ animation: "spin 1s linear infinite" }} /> : <Save size={14} />}
+          {saving
+            ? <Loader2 size={14} style={{ animation: "spin 1s linear infinite" }} />
+            : <Save size={14} />}
           {saving ? "جاري الحفظ..." : "حفظ العطر"}
         </button>
       </div>
@@ -465,7 +551,9 @@ export default function AdminPerfumes() {
         headers: authHeaders(),
         body: JSON.stringify({ isActive: !p.isActive }),
       });
-      setPerfumes((prev) => prev.map((x) => x._id === p._id ? { ...x, isActive: !x.isActive } : x));
+      setPerfumes((prev) =>
+        prev.map((x) => x._id === p._id ? { ...x, isActive: !x.isActive } : x)
+      );
     } catch {}
   };
 
@@ -481,11 +569,15 @@ export default function AdminPerfumes() {
   const displayPrice = (p) => {
     const base = p.fullBottle?.price;
     if (!base) return "—";
+    // ✅ Use stored discountedPrice for display too — never recompute
+    if (p.fullBottle?.discountedPrice && p.discount > 0) {
+      return `₪${p.fullBottle.discountedPrice} (-${Math.round(p.discount)}%)`;
+    }
     if (p.discount > 0) {
-      const final = Math.round(base * (1 - p.discount / 100));
+      const final = +(base * (1 - p.discount / 100)).toFixed(2);
       return `₪${final} (-${Math.round(p.discount)}%)`;
     }
-    return `₪${Math.round(base)}`;
+    return `₪${base}`;
   };
 
   return (
@@ -607,7 +699,11 @@ export default function AdminPerfumes() {
             <div className="pm-actions">
               <div className="pm-search">
                 <Search size={14} className="pm-search-icon" />
-                <input placeholder="بحث بالاسم أو البراند..." value={search} onChange={(e) => setSearch(e.target.value)} />
+                <input
+                  placeholder="بحث بالاسم أو البراند..."
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                />
               </div>
               <button className="add-btn" onClick={() => { setEditing(null); setMode("add"); }}>
                 <Plus size={15} /> إضافة عطر
@@ -690,7 +786,9 @@ export default function AdminPerfumes() {
                         <td><span style={{ color: "#888", fontSize: "0.8rem" }}>{p.fullBottle?.stock ?? 0}</span></td>
                         <td>
                           <button className="toggle-btn" onClick={() => handleToggle(p)}>
-                            {p.isActive ? <ToggleRight size={22} color="#2e7d5a" /> : <ToggleLeft size={22} color="#ccc" />}
+                            {p.isActive
+                              ? <ToggleRight size={22} color="#2e7d5a" />
+                              : <ToggleLeft size={22} color="#ccc" />}
                           </button>
                         </td>
                         <td>
@@ -711,7 +809,9 @@ export default function AdminPerfumes() {
         <div className="form-panel">
           <div className="form-panel-title">
             <span>{mode === "edit" ? `تعديل: ${editing?.name}` : "إضافة عطر جديد"}</span>
-            <button className="fp-close" onClick={() => { setMode("list"); setEditing(null); }}><X size={18} /></button>
+            <button className="fp-close" onClick={() => { setMode("list"); setEditing(null); }}>
+              <X size={18} />
+            </button>
           </div>
           <PerfumeForm
             initial={editing ?? null}
