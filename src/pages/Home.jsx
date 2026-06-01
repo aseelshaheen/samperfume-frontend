@@ -31,7 +31,13 @@ function getPrice(p) {
     return sizes.length ? Math.min(...sizes.map((s) => s.price)) : null;
   }
   const base = p.fullBottle?.price;
-  return p.discount ? +(base * (1 - p.discount / 100)).toFixed(0) : base;
+  if (!base) return null;
+  if (p.discount) {
+    return p.fullBottle?.discountedPrice != null
+      ? Math.round(p.fullBottle.discountedPrice)
+      : +(base * (1 - p.discount / 100)).toFixed(0);
+  }
+  return base;
 }
 
 /* ── PRODUCT CARD ────────────────────────────────────────────────────────── */
