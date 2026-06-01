@@ -230,10 +230,14 @@ function PerfumeForm({ initial, onSave, onCancel, saving }) {
   };
 
   const origNum    = parseFloat(form._originalPrice);
-  const whlsNum    = parseFloat(form.fullBottle.wholesalePrice);
-  const showMargin =
-    form.fullBottle.wholesalePrice !== "" && !isNaN(whlsNum) &&
-    form._originalPrice !== "" && !isNaN(origNum) && origNum > 0 && whlsNum >= 0;
+const whlsNum    = parseFloat(form.fullBottle.wholesalePrice);
+const discNum    = parseFloat(form._discountedPrice);
+const sellPrice  = !isNaN(discNum) && discNum > 0 && form._discountedPrice !== ""
+  ? discNum
+  : origNum;
+const showMargin =
+  form.fullBottle.wholesalePrice !== "" && !isNaN(whlsNum) &&
+  !isNaN(sellPrice) && sellPrice > 0 && whlsNum >= 0;
 
   return (
     <form className="af-form" onSubmit={handleSubmit}>
@@ -387,15 +391,17 @@ function PerfumeForm({ initial, onSave, onCancel, saving }) {
             style={{ maxWidth: 220 }}
           />
           {showMargin && (
-            <div style={{ fontSize: "0.78rem", color: "#888", marginTop: "0.25rem" }}>
-              هامش الربح:{" "}
-              <strong style={{ color: "#452829" }}>₪{(origNum - whlsNum).toFixed(2)}</strong>
-              {" · "}{Math.round(((origNum - whlsNum) / origNum) * 100)}%
-            </div>
+<div style={{ fontSize: "0.78rem", color: "#888", marginTop: "0.25rem" }}>
+  هامش الربح:{" "}
+  <strong style={{ color: "#452829" }}>₪{(sellPrice - whlsNum).toFixed(2)}</strong>
+  {" · "}{Math.round(((sellPrice - whlsNum) / sellPrice) * 100)}%
+  {!isNaN(discNum) && discNum > 0 && form._discountedPrice !== "" && (
+    <span style={{ color: "#aaa", marginRight: "0.4rem" }}>(محسوب من سعر الخصم)</span>
+  )}
+</div>
           )}
         </div>
 
-        {/* ✅ Display exactly what was typed — never recomputed */}
         {form.discount > 0 ? (
           <div style={{ fontSize: "0.8rem", color: "#2e7d5a", fontWeight: 700, marginTop: "0.5rem", display: "flex", alignItems: "center", gap: "0.35rem" }}>
             <span>✓</span>
