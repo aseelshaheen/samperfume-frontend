@@ -44,9 +44,11 @@ function PerfumeCard({ p, section }) {
     ? (p.fullBottle?.price ?? "—")
     : (p.taqseem?.sizes?.[0]?.price ?? "—");
 
-  const finalPrice = section === "full" && p.discount > 0
-    ? +(p.fullBottle.price * (1 - p.discount / 100)).toFixed(0)
-    : price;
+ const finalPrice = section === "full" && p.discount > 0
+  ? p.fullBottle?.discountedPrice != null
+    ? Math.round(p.fullBottle.discountedPrice)
+    : +(p.fullBottle.price * (1 - p.discount / 100)).toFixed(0)
+  : price;
 
   const originalPrice = section === "full" && p.discount > 0 ? p.fullBottle?.price : null;
   const mainImg = p.images?.find(i => i.isMain)?.url ?? p.images?.[0]?.url;
