@@ -7,18 +7,23 @@ const API = import.meta.env.VITE_API_URL || "/api";;
 const BRAND_CATALOGUE = [
   { name: "Tom Ford",  query: "Tom+Ford",  logo: "https://res.cloudinary.com/dsxz0cybq/image/upload/f_auto,q_auto/v1778601223/tom-ford-logo-png_seeklogo-383930_qwwbef.webp", origin: "الولايات المتحدة", type: "نيش", year: "2006" },
   { name: "Xerjoff",   query: "Xerjoff",   logo: "https://res.cloudinary.com/dsxz0cybq/image/upload/f_auto,q_auto/v1778601288/Xerjoff_Logo_cxrl1i.webp", origin: "إيطاليا", type: "نيش", year: "2003" },
-  { name: "Jean Paul", query: "Jean+Paul", logo: "https://res.cloudinary.com/dsxz0cybq/image/upload/f_auto,q_auto/v1778601494/jean_paul_tka67m.png", origin: "فرنسا", type: "مصمم", year: "1976" },
-  { name: "Valentino", query: "Valentino", logo: "https://res.cloudinary.com/dsxz0cybq/image/upload/f_auto,q_auto/v1778601535/valentino_sytghn.png", origin: "إيطاليا", type: "مصمم", year: "1978" },
-  { name: "YSL",       query: "YSL",       logo: "https://res.cloudinary.com/dsxz0cybq/image/upload/f_auto,q_auto/v1778601632/yves-saint-laurent-logo-vector_csxisk.png", origin: "فرنسا", type: "مصمم", year: "1964" },
-  { name: "Versace",   query: "Versace",   logo: "https://res.cloudinary.com/dsxz0cybq/image/upload/f_auto,q_auto/v1778601738/vercase_gsccja.png", origin: "إيطاليا", type: "مصمم", year: "1978" },
-  { name: "Burberry",  query: "Burberry",  logo: "https://res.cloudinary.com/dsxz0cybq/image/upload/f_auto,q_auto/v1778601791/burberry_ea6ipk.png", origin: "بريطانيا", type: "مصمم", year: "1856" },
-  { name: "Gucci",     query: "Gucci",     logo: "https://res.cloudinary.com/dsxz0cybq/image/upload/f_auto,q_auto/v1778601829/gucci_nlpsxu.png", origin: "إيطاليا", type: "مصمم", year: "1921" },
-  { name: "Chanel",    query: "Chanel",    logo: "https://res.cloudinary.com/dsxz0cybq/image/upload/f_auto,q_auto/v1778602184/chanel_k9abdp.png", origin: "فرنسا", type: "مصمم", year: "1910" },
-  { name: "Armani",    query: "Armani",    logo: "https://res.cloudinary.com/dsxz0cybq/image/upload/f_auto,q_auto/v1778601989/giorgio-armani-logo-png-transparent_h24msy.png", origin: "إيطاليا", type: "مصمم", year: "1975" },
-
+  { name: "Jean Paul", query: "Jean+Paul", logo: "https://res.cloudinary.com/dsxz0cybq/image/upload/f_auto,q_auto/v1778601494/jean_paul_tka67m.png", origin: "فرنسا", type: "ديزاينر", year: "1976" },
+  { name: "Valentino", query: "Valentino", logo: "https://res.cloudinary.com/dsxz0cybq/image/upload/f_auto,q_auto/v1778601535/valentino_sytghn.png", origin: "إيطاليا", type: "ديزاينر", year: "1978" },
+  { name: "YSL",       query: "YSL",       logo: "https://res.cloudinary.com/dsxz0cybq/image/upload/f_auto,q_auto/v1778601632/yves-saint-laurent-logo-vector_csxisk.png", origin: "فرنسا", type: "ديزاينر", year: "1964" },
+  { name: "Versace",   query: "Versace",   logo: "https://res.cloudinary.com/dsxz0cybq/image/upload/f_auto,q_auto/v1778601738/vercase_gsccja.png", origin: "إيطاليا", type: "ديزاينر", year: "1978" },
+  { name: "Burberry",  query: "Burberry",  logo: "https://res.cloudinary.com/dsxz0cybq/image/upload/f_auto,q_auto/v1778601791/burberry_ea6ipk.png", origin: "بريطانيا", type: "ديزاينر", year: "1856" },
+  { name: "Gucci",     query: "Gucci",     logo: "https://res.cloudinary.com/dsxz0cybq/image/upload/f_auto,q_auto/v1778601829/gucci_nlpsxu.png", origin: "إيطاليا", type: "ديزاينر", year: "1921" },
+  { name: "Chanel",    query: "Chanel",    logo: "https://res.cloudinary.com/dsxz0cybq/image/upload/f_auto,q_auto/v1778602184/chanel_k9abdp.png", origin: "فرنسا", type: "ديزاينر", year: "1910" },
+  { name: "Armani",    query: "Armani",    logo: "https://res.cloudinary.com/dsxz0cybq/image/upload/f_auto,q_auto/v1778601989/giorgio-armani-logo-png-transparent_h24msy.png", origin: "إيطاليا", type: "ديزاينر", year: "1975" },
+  { name: "Drazad London",  query: "Drazad+London",  logo: "https://res.cloudinary.com/dsxz0cybq/image/upload/v1780336842/55950a94-8a8e-4d47-b88e-d739709a5f91.png", origin: "بريطانيا",  type: "نيش", year: "2024" },
+  { name: "Omanluxury", query: "Omanluxury", logo: "https://res.cloudinary.com/dsxz0cybq/image/upload/v1780336612/615408c0-3054-4131-96ab-542cfbab35c6.png", origin: "عُمان", type: "نيش", year: "2025" },
+  { name: "Nasomatto",     query: "Nasomatto",     logo: "https://res.cloudinary.com/dsxz0cybq/image/upload/v1780336977/9f8a4e58-6d31-432b-86ab-a60274718544.png", origin: "إيطاليا",  type: "نيش", year: "2007" },
+  { name: "Nishane",       query: "Nishane",       logo: "https://res.cloudinary.com/dsxz0cybq/image/upload/v1780337011/c7bbb9d7-30bf-4606-bca8-e5f43f3a02ae.png", origin: "تركيا",    type: "نيش", year: "2012" },
+  { name: "Sospiro",       query: "Sospiro",       logo: "https://res.cloudinary.com/dsxz0cybq/image/upload/v1780337155/4e81206f-967c-4c17-80dd-9443f43e49c7.png", origin: "إيطاليا",  type: "نيش", year: "2010" },
+  { name: "Montale",       query: "Montale",       logo: "https://res.cloudinary.com/dsxz0cybq/image/upload/v1780337176/b0776af0-57b7-4e5d-af38-16d476a74fce.png", origin: "فرنسا",    type: "نيش", year: "2003" },
 ];
 
-const TYPE_FILTERS = ["الكل", "نيش", "مصمم"];
+const TYPE_FILTERS = ["الكل", "نيش", "ديزاينر"];
 
 export default function Brands() {
   const navigate = useNavigate();
