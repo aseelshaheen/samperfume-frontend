@@ -96,12 +96,16 @@ function PerfumeCard({ p, section }) {
   const originalPrice =
     section === "full" && p.discount > 0 ? p.fullBottle?.price : null;
 
-  const finalPrice =
-    section === "full" && p.discount > 0 && p.fullBottle?.price != null
-      ? Math.round(p.fullBottle.price * (1 - p.discount / 100))
-      : rawPrice != null
-      ? Math.round(rawPrice)
-      : null;
+const finalPrice =
+  section === "full" && p.discount > 0
+    ? p.fullBottle?.discountedPrice != null
+      ? Math.round(p.fullBottle.discountedPrice)       
+      : p.fullBottle?.price != null
+        ? Math.round(p.fullBottle.price * (1 - p.discount / 100)) // fallback
+        : null
+    : rawPrice != null
+    ? Math.round(rawPrice)
+    : null;
 
   const discountPct = p.discount > 0 ? Math.round(p.discount) : 0;
 
