@@ -20,6 +20,7 @@ const BRAND_CATALOGUE = [
   { name: "Nasomatto",     query: "Nasomatto",     logo: "https://res.cloudinary.com/dsxz0cybq/image/upload/v1780336977/9f8a4e58-6d31-432b-86ab-a60274718544.png", origin: "إيطاليا",  type: "نيش", year: "2007" },
   { name: "Nishane",       query: "Nishane",       logo: "https://res.cloudinary.com/dsxz0cybq/image/upload/v1780337011/c7bbb9d7-30bf-4606-bca8-e5f43f3a02ae.png", origin: "تركيا",    type: "نيش", year: "2012" },
   { name: "Sospiro",       query: "Sospiro",       logo: "https://res.cloudinary.com/dsxz0cybq/image/upload/v1780337155/4e81206f-967c-4c17-80dd-9443f43e49c7.png", origin: "إيطاليا",  type: "نيش", year: "2010" },
+  { name: "Viktor & Rolf", query: "Viktor+Rolf",   logo: "https://res.cloudinary.com/dsxz0cybq/image/upload/v1780337403/423748ac-9709-40c7-aab8-e4fb0665fff7.png", origin: "هولندا",   type: "ديزاينر", year: "1993" },
   { name: "Montale",       query: "Montale",       logo: "https://res.cloudinary.com/dsxz0cybq/image/upload/v1780337176/b0776af0-57b7-4e5d-af38-16d476a74fce.png", origin: "فرنسا",    type: "نيش", year: "2003" },
 ];
 
