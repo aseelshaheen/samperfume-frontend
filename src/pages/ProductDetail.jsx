@@ -218,17 +218,18 @@ export default function ProductDetail() {
   const mainImg = images[selectedImg]?.url ?? images[0]?.url;
   const isBoth  = perfume.availability === "both";
 
-  // FIX: always Math.round — no float digits
-  const displayPrice =
-    activeSection === "full"
-      ? perfume.discount > 0
-        ? Math.round(perfume.fullBottle.price * (1 - perfume.discount / 100))
-        : perfume.fullBottle?.price != null
-        ? Math.round(perfume.fullBottle.price)
-        : null
-      : selectedSize?.price != null
-      ? Math.round(selectedSize.price)
-      : null;
+const displayPrice =
+  activeSection === "full"
+    ? perfume.discount > 0
+      ? perfume.fullBottle?.discountedPrice != null
+        ? Math.round(perfume.fullBottle.discountedPrice)
+        : Math.round(perfume.fullBottle.price * (1 - perfume.discount / 100))
+      : perfume.fullBottle?.price != null
+      ? Math.round(perfume.fullBottle.price)
+      : null
+    : selectedSize?.price != null
+    ? Math.round(selectedSize.price)
+    : null;
 
   const originalPrice =
     activeSection === "full" && perfume.discount > 0
