@@ -90,14 +90,17 @@ export default function Wishlist() {
     setTimeout(() => setAdding((a) => ({ ...a, [perfume._id]: false })), 1800);
   };
 
-  const getPrice = (p) => {
-    if (!p) return null;
-    const base = p.fullBottle?.price;
-    if (!base) return null;
-    return p.discount >= 1
-      ? Math.round(base - (base * p.discount) / 100)
-      : base;
-  };
+const getPrice = (p) => {
+  if (!p) return null;
+  const base = p.fullBottle?.price;
+  if (!base) return null;
+  if (p.discount >= 1) {
+    return p.fullBottle?.discountedPrice != null
+      ? Math.round(p.fullBottle.discountedPrice)
+      : Math.round(base - (base * p.discount) / 100);
+  }
+  return base;
+};
   return (
     <>
       <style>{`
