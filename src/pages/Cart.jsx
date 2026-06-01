@@ -195,19 +195,20 @@ export default function Cart() {
     load();
   }, []);
 
-  /* ── Price helper — no rounding, exact value ── */
-  const getItemPrice = (item) => {
-    const p = item.perfume;
-    if (!p) return 0;
-    if (item.section === "full") {
-      const base = p.fullBottle?.price ?? 0;
-      return p.discount >= 1
-        ? Math.round(base - (base * p.discount) / 100)
-        : base;
+const getItemPrice = (item) => {
+  const p = item.perfume;
+  if (!p) return 0;
+  if (item.section === "full") {
+    const base = p.fullBottle?.price ?? 0;
+    if (p.discount >= 1) {
+      return p.fullBottle?.discountedPrice != null
+        ? Math.round(p.fullBottle.discountedPrice)
+        : Math.round(base - (base * p.discount) / 100);
     }
-    return p.taqseem?.sizes?.find((s) => s.ml === item.size)?.price ?? 0;
-  };
-
+    return base;
+  }
+  return p.taqseem?.sizes?.find((s) => s.ml === item.size)?.price ?? 0;
+};
   const activeRegion = REGIONS.find(
     (r) => r.value === (isLoggedIn ? region : guestRegion),
   );
