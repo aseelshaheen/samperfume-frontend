@@ -52,9 +52,7 @@ export default function AuthPage({ onSuccess }) {
 
 if (form.email.trim().toLowerCase() === ADMIN_EMAIL.toLowerCase()) {
   setSuccess("مرحباً بك في لوحة الإدارة! جاري التحويل...");
-  setTimeout(() => {
-    window.location.href = `/admin?token=${data.token}`;
-  }, 900);
+  setTimeout(() => onSuccess?.(data.user, data.token), 900);
   return;
 }
 
