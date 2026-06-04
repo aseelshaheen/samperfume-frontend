@@ -891,7 +891,7 @@ export default function Cart() {
                 )}
                 {isSalfit(guestCity) && guestRegion && (
                   <div className="salfit-badge">
-                    🎉 سلفيت · توصيل مجاني تقريباً — ₪5 فقط!
+                     سلفيت · توصيل مجاني تقريباً — ₪5 فقط!
                   </div>
                 )}
                 <div className="cs-field">
