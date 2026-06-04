@@ -526,14 +526,45 @@ const displayPrice =
             <span className="pd-meta-badge mb-gender">
               {perfume.gender === "male" ? "رجالي" : perfume.gender === "female" ? "نسائي" : "مشترك"}
             </span>
-            {Array.isArray(perfume.fragranceFamily)
-              ? perfume.fragranceFamily.map((f) => (
-                  <span key={f} className="pd-meta-badge mb-family">{f}</span>
-                ))
-              : perfume.fragranceFamily && (
-                  <span className="pd-meta-badge mb-family">{perfume.fragranceFamily}</span>
-                )
-            }
+{(() => {
+  const FAMILY_AR = {
+    // قديم
+    fresh:    "منعش",
+    citrus:   "الحمضيات",
+    aquatic:  "المائيات",
+    floral:   "الأزهار",
+    oriental: "شرقي",
+    Spicy:    "التوابل",
+    gourmand: "الغورماند",
+    woody:    "الأخشاب",
+    chypre:   "شيبر",
+    fougere:  "السرخسيات",
+    oud:      "العود",
+    Musk:     "المسك",
+    Fruity:   "الفواكه",
+    other:    "أخرى",
+    // جديد
+    green:       "الروائح الخضراء",
+    fruity:      "الفواكه",
+    ambery:      "العنبرية",
+    spicy:       "التوابل",
+    mossy_woods: "الأخشاب الطحلبية",
+    leather:     "الجلود",
+    taif_rose:   "الورد الطائفي",
+  };
+
+  const families = Array.isArray(perfume.fragranceFamily)
+    ? perfume.fragranceFamily
+    : perfume.fragranceFamily
+    ? [perfume.fragranceFamily]
+    : [];
+
+  return families.map((f) => (
+    <span key={f} className="pd-meta-badge mb-family">
+      {FAMILY_AR[f] ?? f}
+    </span>
+  ));
+})()}
             <span className="pd-meta-badge" style={{ background: "#f5f5f5", color: "#888" }}>
               {availLabel[perfume.availability]}
             </span>
