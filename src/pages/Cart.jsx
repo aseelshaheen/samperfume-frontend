@@ -75,7 +75,7 @@ const REGIONS = [
 /* ── Salfit detection ───────────────────────────────────────────────────── */
 const isSalfit = (cityVal) => {
   if (!cityVal) return false;
-  return /^(salfit|salfeet|سلفيت)$/i.test(cityVal.trim());
+  return /\b(salfit|salfeet|سلفيت)\b/i.test(cityVal.trim());
 };
 
 /* ════════════════════════════════════════════════════════════════════════════
@@ -94,6 +94,7 @@ export default function Cart() {
   const [guestPhone, setGuestPhone] = useState("");
   const [guestRegion, setGuestRegion] = useState("");
   const [guestCity, setGuestCity] = useState("");
+  const [guestStreet, setGuestStreet] = useState("");
   const [guestNotes, setGuestNotes] = useState("");
 
   /* ── Auth checkout fields ── */
@@ -306,6 +307,10 @@ export default function Cart() {
       setError("يرجى إدخال المدينة / البلدة");
       return;
     }
+    if (!guestStreet.trim()) {
+      setError("يرجى إدخال الشارع");
+      return;
+    }
     setPlacing(true);
     try {
       const res = await fetch(`${API}/orders/guest`, {
@@ -315,6 +320,7 @@ export default function Cart() {
           guestName,
           guestPhone,
           guestCity: `${activeRegion?.label} - ${guestCity}`,
+          guestStreet,
           notes: guestNotes,
           items: cart.map((item) => ({
             perfumeId: item.perfumeId,
@@ -894,6 +900,14 @@ export default function Cart() {
                     placeholder="المدينة / البلدة *"
                     value={guestCity}
                     onChange={(e) => setGuestCity(e.target.value)}
+                  />
+                </div>
+                <div className="cs-field">
+                  <input
+                    className="cs-input"
+                    placeholder="الشارع *"
+                    value={guestStreet}
+                    onChange={(e) => setGuestStreet(e.target.value)}
                   />
                 </div>
                 <div className="divider" />
