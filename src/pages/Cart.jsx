@@ -68,9 +68,15 @@ function guestCartSave(items) {
 /* ── Regions ────────────────────────────────────────────────────────────── */
 const REGIONS = [
   { label: "الضفة الغربية", value: "west_bank", shipping: 20 },
-  { label: "القدس", value: "jerusalem", shipping: 50 },
-  { label: "الداخل المحتل (48)", value: "inside_48", shipping: 70 },
+  { label: "القدس", value: "jerusalem", shipping: 35 },
+  { label: "الداخل المحتل (48)", value: "inside_48", shipping: 75 },
 ];
+
+/* ── Salfit detection ───────────────────────────────────────────────────── */
+const isSalfit = (cityVal) => {
+  if (!cityVal) return false;
+  return /^(salfit|salfeet|سلفيت)$/i.test(cityVal.trim());
+};
 
 /* ════════════════════════════════════════════════════════════════════════════
    MAIN COMPONENT
@@ -195,24 +201,38 @@ export default function Cart() {
     load();
   }, []);
 
-const getItemPrice = (item) => {
-  const p = item.perfume;
-  if (!p) return 0;
-  if (item.section === "full") {
-    const base = p.fullBottle?.price ?? 0;
-    if (p.discount >= 1) {
-      return p.fullBottle?.discountedPrice != null
-        ? Math.round(p.fullBottle.discountedPrice)
-        : Math.round(base - (base * p.discount) / 100);
+  /* ── Price helper ───────────────────────────────────────────────────────── */
+  const getItemPrice = (item) => {
+    const p = item.perfume;
+    if (!p) return 0;
+    if (item.section === "full") {
+      const base = p.fullBottle?.price ?? 0;
+      if (p.discount >= 1) {
+        return p.fullBottle?.discountedPrice != null
+          ? Math.round(p.fullBottle.discountedPrice)
+          : Math.round(base - (base * p.discount) / 100);
+      }
+      return base;
     }
-    return base;
-  }
-  return p.taqseem?.sizes?.find((s) => s.ml === item.size)?.price ?? 0;
-};
+    return p.taqseem?.sizes?.find((s) => s.ml === item.size)?.price ?? 0;
+  };
+
+  /* ── Shipping fee (with Salfit special case) ────────────────────────────── */
   const activeRegion = REGIONS.find(
     (r) => r.value === (isLoggedIn ? region : guestRegion),
   );
-  const shippingFee = activeRegion?.shipping ?? null;
+  const cityForShipping = isLoggedIn
+    ? selectedAddrId && !editingAddr
+      ? user?.addresses?.find((a) => a._id === selectedAddrId)?.city ?? city
+      : city
+    : guestCity;
+  const shippingFee =
+    activeRegion != null
+      ? isSalfit(cityForShipping)
+        ? 5
+        : activeRegion.shipping
+      : null;
+
   const PROMO_DISC = 0.2;
   const itemsPrice = cart.reduce(
     (sum, i) => sum + getItemPrice(i) * i.quantity,
@@ -351,6 +371,14 @@ const getItemPrice = (item) => {
     } else {
       if (!city.trim()) {
         setError("يرجى إدخال المدينة");
+        return;
+      }
+      if (!area.trim()) {
+        setError("يرجى إدخال المنطقة / الحي");
+        return;
+      }
+      if (!street.trim()) {
+        setError("يرجى إدخال الشارع");
         return;
       }
       shippingAddress = {
@@ -546,13 +574,11 @@ const getItemPrice = (item) => {
         @keyframes spin{to{transform:rotate(360deg)}}
         @keyframes fadeSlide{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
 
-        /* Layout */
         .cart-header{padding:2rem 2rem 0;max-width:1400px;margin:0 auto;}
         .cart-title{font-family:'Playfair Display',serif;font-size:2rem;color:var(--black);font-weight:700;margin-bottom:0.3rem;}
         .cart-sub{font-size:0.88rem;color:var(--gray);}
         .cart-layout{max-width:1400px;margin:0 auto;padding:2rem;display:grid;grid-template-columns:1fr 420px;gap:2rem;align-items:start;}
 
-        /* Cart items */
         .cart-item{display:flex;gap:1.2rem;padding:1.3rem 0;border-bottom:1px solid var(--border);align-items:center;}
         .cart-item:last-child{border-bottom:none;}
         .ci-img-wrap{width:86px;height:86px;border-radius:6px;overflow:hidden;background:var(--off);flex-shrink:0;}
@@ -571,37 +597,25 @@ const getItemPrice = (item) => {
         .ci-remove{background:none;border:none;color:#ccc;cursor:pointer;padding:0.2rem;border-radius:4px;display:flex;transition:color 0.2s;}
         .ci-remove:hover{color:#c0392b;}
 
-        /* Empty */
         .cart-empty{text-align:center;padding:4rem 2rem;display:flex;flex-direction:column;align-items:center;gap:1rem;color:var(--gray);}
         .cart-empty h2{font-family:'Playfair Display',serif;color:var(--black);}
 
-        /* Summary panel */
         .cart-summary{background:var(--off);border:1px solid var(--border);border-radius:10px;padding:1.5rem;position:sticky;top:100px;}
         .cs-title{font-family:'Playfair Display',serif;font-size:1.15rem;color:var(--black);font-weight:700;margin-bottom:1.3rem;}
-        .delivery-alert{
-  background:#fff1f1;
-  border:1px solid #f5bcbc;
-  color:#b42318;
-  padding:0.7rem 0.85rem;
-  border-radius:6px;
-  font-size:0.76rem;
-  line-height:1.7;
-  margin-top:0.45rem;
-}
-        /* Section headers */
+        .delivery-alert{background:#fff1f1;border:1px solid #f5bcbc;color:#b42318;padding:0.7rem 0.85rem;border-radius:6px;font-size:0.76rem;line-height:1.7;margin-top:0.45rem;}
+        .salfit-badge{background:#f0fdf4;border:1px solid #b3e0ca;color:#2e7d5a;padding:0.32rem 0.65rem;border-radius:4px;font-size:0.73rem;font-weight:700;margin:0.3rem 0 0.6rem;display:inline-flex;align-items:center;gap:0.3rem;}
+
         .section-hd{display:flex;align-items:center;justify-content:space-between;margin-bottom:0.5rem;}
         .section-label{font-size:0.67rem;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:#aaa;display:flex;align-items:center;gap:0.35rem;}
         .edit-btn{background:none;border:1px solid var(--border);color:#aaa;font-family:'Tajawal',sans-serif;font-size:0.72rem;padding:0.18rem 0.55rem;border-radius:4px;cursor:pointer;display:flex;align-items:center;gap:0.25rem;transition:all 0.2s;}
         .edit-btn:hover{border-color:var(--bob);color:var(--bob);}
         .edit-btn.active{background:var(--bob);color:white;border-color:var(--bob);}
 
-        /* Display pills */
         .data-pill{background:white;border:1.5px solid var(--border);border-radius:6px;padding:0.6rem 0.85rem;font-size:0.87rem;color:var(--black);margin-bottom:0.6rem;display:flex;align-items:center;gap:0.5rem;line-height:1.4;}
         .data-pill-icon{color:#aaa;flex-shrink:0;}
         .data-pill-main{flex:1;}
         .data-pill-sub{font-size:0.74rem;color:#aaa;display:block;margin-top:0.1rem;}
 
-        /* Inputs */
         .cs-field{margin-bottom:0.6rem;}
         .cs-input,.cs-select,.cs-textarea{background:white;border:1.5px solid var(--border);color:var(--black);font-family:'Tajawal',sans-serif;font-size:0.88rem;padding:0.58rem 0.82rem;border-radius:5px;outline:none;width:100%;transition:border-color 0.2s;}
         .cs-input:focus,.cs-select:focus,.cs-textarea:focus{border-color:var(--bob);}
@@ -610,13 +624,11 @@ const getItemPrice = (item) => {
         .cs-row-2{display:grid;grid-template-columns:1fr 1fr;gap:0.5rem;}
         .cs-small-label{font-size:0.68rem;color:#aaa;margin-bottom:0.2rem;display:block;}
 
-        /* Shipping badge */
         .ship-badge{display:inline-flex;align-items:center;gap:0.3rem;font-size:0.73rem;font-weight:700;padding:0.28rem 0.65rem;border-radius:20px;margin:0.3rem 0 0.75rem;}
         .sb-west{background:#edf5ee;color:#2a6b3a;}
         .sb-jerusalem{background:#fdf4e7;color:#7a5020;}
         .sb-inside{background:#fef2f2;color:#9b2929;}
 
-        /* Address selector */
         .addr-list{display:flex;flex-direction:column;gap:0.35rem;margin-bottom:0.6rem;}
         .addr-opt{display:flex;align-items:flex-start;gap:0.55rem;padding:0.6rem 0.75rem;border:1.5px solid var(--border);border-radius:5px;cursor:pointer;background:white;transition:border-color 0.2s;}
         .addr-opt.sel{border-color:var(--bob);background:rgba(69,40,41,0.03);}
@@ -624,15 +636,12 @@ const getItemPrice = (item) => {
         .addr-text{font-size:0.82rem;color:var(--black);line-height:1.5;}
         .addr-lbl{font-size:0.67rem;color:#aaa;margin-bottom:0.1rem;}
 
-        /* Save address checkbox */
         .save-addr-row{display:flex;align-items:center;gap:0.5rem;margin-bottom:0.6rem;margin-top:0.2rem;}
         .save-addr-row input{accent-color:var(--bob);width:14px;height:14px;}
         .save-addr-row label{font-size:0.8rem;color:#555;cursor:pointer;}
 
-        /* Guest notice */
         .guest-notice{background:#fff8f0;border:1px solid #fde8c8;border-radius:6px;padding:0.6rem 0.85rem;margin-bottom:1rem;font-size:0.77rem;color:#b5620a;}
 
-        /* Promo */
         .promo-row{display:flex;gap:0.45rem;margin-bottom:0.9rem;}
         .promo-input{flex:1;background:white;border:1.5px solid var(--border);color:var(--black);font-family:'Tajawal',sans-serif;font-size:0.85rem;padding:0.55rem 0.8rem;border-radius:5px;outline:none;transition:border-color 0.2s;}
         .promo-input:focus{border-color:var(--bob);}
@@ -640,61 +649,54 @@ const getItemPrice = (item) => {
         .promo-btn:hover{background:#333;}
         .promo-ok{font-size:0.77rem;color:var(--green);background:var(--green-bg);border:1px solid #86efac;padding:0.32rem 0.65rem;border-radius:4px;margin-bottom:0.8rem;}
 
-        /* Totals */
         .divider{height:1px;background:var(--border);margin:0.85rem 0;}
         .row{display:flex;justify-content:space-between;font-size:0.85rem;color:var(--gray);margin-bottom:0.45rem;}
         .row.disc{color:var(--green);}
         .row.total{color:var(--black);font-weight:700;font-size:0.98rem;}
 
-        /* Error + CTA */
         .cs-error{font-size:0.79rem;color:#c0392b;background:#fef2f2;border:1px solid #fecaca;padding:0.48rem 0.72rem;border-radius:4px;margin-bottom:0.75rem;}
         .place-btn{width:100%;background:var(--bob);color:white;border:none;padding:0.88rem;font-family:'Tajawal',sans-serif;font-size:0.98rem;font-weight:700;border-radius:6px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:0.5rem;transition:background 0.2s;margin-top:0.9rem;}
         .place-btn:hover:not(:disabled){background:var(--bob-l);}
         .place-btn:disabled{opacity:0.6;cursor:not-allowed;}
         .cs-note{font-size:0.71rem;color:#aaa;text-align:center;margin-top:0.7rem;line-height:1.6;}
 
-        /* Collapse animation */
         .form-block{animation:fadeSlide 0.22s ease both;}
 
         @media(max-width:900px){
-          .cart-layout{grid-template-columns:1fr;}
+          .cart-layout{grid-template-columns:1fr;padding:1rem;}
           .cart-summary{position:static;}
         }
-          @media(max-width:900px){
-  .cart-layout{grid-template-columns:1fr;padding:1rem;}
-  .cart-summary{position:static;}
-}
-@media(max-width:480px){
-  .cart-header{padding:1rem 1rem 0;}
-  .cart-title{font-size:1.35rem;}
-  .cart-sub{font-size:0.78rem;}
-  .cart-item{gap:0.65rem;padding:0.8rem 0;}
-  .ci-img-wrap{width:60px;height:60px;flex-shrink:0;border-radius:5px;}
-  .ci-brand{font-size:0.58rem;}
-  .ci-name{font-size:0.84rem;}
-  .ci-section{font-size:0.68rem;}
-  .ci-price{font-size:0.88rem;}
-  .ci-qty-btn{width:24px;height:24px;font-size:0.9rem;}
-  .ci-qty-num{width:24px;font-size:0.78rem;}
-  .cart-summary{padding:1rem;}
-  .cs-title{font-size:0.95rem;margin-bottom:1rem;}
-  .section-label{font-size:0.6rem;}
-  .cs-input,.cs-select,.cs-textarea{font-size:0.82rem;padding:0.5rem 0.7rem;}
-  .cs-row-2{grid-template-columns:1fr;}
-  .data-pill{font-size:0.82rem;padding:0.5rem 0.7rem;}
-  .addr-opt{padding:0.45rem 0.6rem;}
-  .addr-text{font-size:0.76rem;}
-  .promo-input{font-size:0.8rem;padding:0.48rem 0.65rem;}
-  .promo-btn{font-size:0.78rem;padding:0.48rem 0.75rem;}
-  .row{font-size:0.8rem;}
-  .row.total{font-size:0.9rem;}
-  .place-btn{font-size:0.88rem;padding:0.75rem;}
-  .cs-note{font-size:0.67rem;}
-  .guest-notice{font-size:0.73rem;padding:0.5rem 0.7rem;}
-  .ship-badge{font-size:0.68rem;}
-  .edit-btn{font-size:0.68rem;padding:0.15rem 0.45rem;}
-  .divider{margin:0.65rem 0;}
-}
+        @media(max-width:480px){
+          .cart-header{padding:1rem 1rem 0;}
+          .cart-title{font-size:1.35rem;}
+          .cart-sub{font-size:0.78rem;}
+          .cart-item{gap:0.65rem;padding:0.8rem 0;}
+          .ci-img-wrap{width:60px;height:60px;flex-shrink:0;border-radius:5px;}
+          .ci-brand{font-size:0.58rem;}
+          .ci-name{font-size:0.84rem;}
+          .ci-section{font-size:0.68rem;}
+          .ci-price{font-size:0.88rem;}
+          .ci-qty-btn{width:24px;height:24px;font-size:0.9rem;}
+          .ci-qty-num{width:24px;font-size:0.78rem;}
+          .cart-summary{padding:1rem;}
+          .cs-title{font-size:0.95rem;margin-bottom:1rem;}
+          .section-label{font-size:0.6rem;}
+          .cs-input,.cs-select,.cs-textarea{font-size:0.82rem;padding:0.5rem 0.7rem;}
+          .cs-row-2{grid-template-columns:1fr;}
+          .data-pill{font-size:0.82rem;padding:0.5rem 0.7rem;}
+          .addr-opt{padding:0.45rem 0.6rem;}
+          .addr-text{font-size:0.76rem;}
+          .promo-input{font-size:0.8rem;padding:0.48rem 0.65rem;}
+          .promo-btn{font-size:0.78rem;padding:0.48rem 0.75rem;}
+          .row{font-size:0.8rem;}
+          .row.total{font-size:0.9rem;}
+          .place-btn{font-size:0.88rem;padding:0.75rem;}
+          .cs-note{font-size:0.67rem;}
+          .guest-notice{font-size:0.73rem;padding:0.5rem 0.7rem;}
+          .ship-badge{font-size:0.68rem;}
+          .edit-btn{font-size:0.68rem;padding:0.15rem 0.45rem;}
+          .divider{margin:0.65rem 0;}
+        }
       `}</style>
 
       {/* ── Page header ── */}
@@ -757,7 +759,8 @@ const getItemPrice = (item) => {
                 <div key={String(key)} className="cart-item">
                   <div className="ci-img-wrap">
                     {img ? (
-                      <img loading="lazy"
+                      <img
+                        loading="lazy"
                         src={img}
                         alt={p?.name ?? item.name}
                         className="ci-img"
@@ -877,7 +880,12 @@ const getItemPrice = (item) => {
                     className={`ship-badge ${guestRegion === "west_bank" ? "sb-west" : guestRegion === "jerusalem" ? "sb-jerusalem" : "sb-inside"}`}
                   >
                     <MapPin size={11} /> {activeRegion?.label} · رسوم التوصيل ₪
-                    {activeRegion?.shipping}
+                    {shippingFee}
+                  </div>
+                )}
+                {isSalfit(guestCity) && guestRegion && (
+                  <div className="salfit-badge">
+                    🎉 سلفيت · توصيل مجاني تقريباً — ₪5 فقط!
                   </div>
                 )}
                 <div className="cs-field">
@@ -983,7 +991,12 @@ const getItemPrice = (item) => {
                     className={`ship-badge ${region === "west_bank" ? "sb-west" : region === "jerusalem" ? "sb-jerusalem" : "sb-inside"}`}
                   >
                     <MapPin size={11} /> {activeRegion?.label} · رسوم التوصيل ₪
-                    {activeRegion?.shipping}
+                    {shippingFee}
+                  </div>
+                )}
+                {isSalfit(city) && region && (
+                  <div className="salfit-badge">
+                    🎉 سلفيت · توصيل مجاني تقريباً — ₪5 فقط!
                   </div>
                 )}
 
@@ -1059,20 +1072,20 @@ const getItemPrice = (item) => {
                         />
                       </div>
                       <div>
-                        <span className="cs-small-label">الحي / المنطقة</span>
+                        <span className="cs-small-label">الحي / المنطقة *</span>
                         <input
                           className="cs-input"
-                          placeholder="اختياري"
+                          placeholder="مثل: المنطقة الشمالية"
                           value={area}
                           onChange={(e) => setArea(e.target.value)}
                         />
                       </div>
                     </div>
                     <div className="cs-field">
-                      <span className="cs-small-label">الشارع</span>
+                      <span className="cs-small-label">الشارع *</span>
                       <input
                         className="cs-input"
-                        placeholder="اختياري"
+                        placeholder="اسم أو رقم الشارع"
                         value={street}
                         onChange={(e) => setStreet(e.target.value)}
                       />
