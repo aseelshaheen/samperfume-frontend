@@ -37,22 +37,34 @@ const EMPTY = {
 };
 
 const FRAGRANCE_FAMILY_LABELS = {
-  oud:      "عود",
-  woody:    "خشبي",
-  floral:   "زهري",
-  oriental: "شرقي",
-  fresh:    "منعش",
-  citrus:   "حمضي",
-  aquatic:  "مائي",
-  gourmand: "حلواني",
-  Fruity:   "فاكهي",
-  Musk:     "مسكي",
-  Spicy:    "توابل",
-  chypre:   "شيبر",
-  fougere:  "فوجير",
-  other:    "أخرى",
+  // ── المنعشة ──
+  fresh:       "منعش",
+  citrus:      "الحمضيات",
+  aquatic:     "المائيات",
+  green:       "الروائح الخضراء",
+  Fruity:      "الفواكه",
+  fruity:      "الفواكه (جديد)",
+  // ── الزهرية ──
+  floral:      "الأزهار",
+  // ── الشرقية / العنبرية ──
+  oriental:    "شرقي",
+  ambery:      "العنبرية",
+  Spicy:       "التوابل",
+  spicy:       "التوابل (جديد)",
+  gourmand:    "الغورماند",
+  // ── الخشبية ──
+  woody:       "الأخشاب",
+  mossy_woods: "الأخشاب الطحلبية",
+  leather:     "الجلود",
+  chypre:      "شيبر",
+  fougere:     "السرخسيات",
+  // ── التقليدية ──
+  oud:         "العود",
+  Musk:        "المسك",
+  taif_rose:   "الورد الطائفي",
+  // ──
+  other:       "أخرى",
 };
-
 const blockArrows = (e) => {
   if (e.key === "ArrowUp" || e.key === "ArrowDown") e.preventDefault();
 };
@@ -279,27 +291,47 @@ const showMargin =
         </div>
       </div>
 
-      {/* ── Fragrance Family ── */}
-      <div className="af-field">
-        <label className="af-label">
-          عائلة العطر
-          {form.fragranceFamily?.length > 0 && (
-            <span style={{ marginRight: "0.5rem", color: "#452829", fontWeight: 700 }}>
-              ({form.fragranceFamily.length} مختار)
-            </span>
-          )}
-        </label>
-        <div className="fragrance-chips">
-          {Object.entries(FRAGRANCE_FAMILY_LABELS).map(([value, label]) => {
-            const selected = (form.fragranceFamily ?? []).includes(value);
-            return (
-              <button key={value} type="button" className={`frag-chip ${selected ? "frag-chip--on" : ""}`} onClick={() => toggleFragrance(value)}>
-                {label}
-              </button>
-            );
-          })}
-        </div>
+{/* ── Fragrance Family ── */}
+<div className="af-field">
+  <label className="af-label">
+    عائلة العطر
+    {form.fragranceFamily?.length > 0 && (
+      <span style={{ marginRight: "0.5rem", color: "#452829", fontWeight: 700 }}>
+        ({form.fragranceFamily.length} مختار)
+      </span>
+    )}
+  </label>
+
+  {[
+    { group: "🍋 المنعشة",           keys: ["fresh","citrus","aquatic","green","Fruity","fruity"] },
+    { group: "🌸 الزهرية",           keys: ["floral"] },
+    { group: "🟤 الشرقية / العنبرية", keys: ["oriental","ambery","Spicy","spicy","gourmand"] },
+    { group: "🪵 الخشبية",           keys: ["woody","mossy_woods","leather","chypre","fougere"] },
+    { group: "🕌 التقليدية",          keys: ["oud","Musk","taif_rose"] },
+    { group: "➕ أخرى",              keys: ["other"] },
+  ].map(({ group, keys }) => (
+    <div key={group} style={{ marginBottom: "0.5rem" }}>
+      <div style={{ fontSize: "0.65rem", fontWeight: 700, color: "#aaa", letterSpacing: "0.08em", marginBottom: "0.3rem", marginTop: "0.45rem" }}>
+        {group}
       </div>
+      <div className="fragrance-chips">
+        {keys.map((value) => {
+          const selected = (form.fragranceFamily ?? []).includes(value);
+          return (
+            <button
+              key={value}
+              type="button"
+              className={`frag-chip ${selected ? "frag-chip--on" : ""}`}
+              onClick={() => toggleFragrance(value)}
+            >
+              {FRAGRANCE_FAMILY_LABELS[value]}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  ))}
+</div>
 
       {/* ── Description ── */}
       <div className="af-field">
