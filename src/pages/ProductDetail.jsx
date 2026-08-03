@@ -23,7 +23,7 @@ const authHeaders = () => ({
 });
 
 const availLabel = {
-  full_only:    "قارورة كاملة فقط",
+  full_only:    "عبوة كاملة فقط",
   taqseem_only: "تقسيمة فقط",
   both:         "كاملة وتقسيمة",
 };
@@ -176,7 +176,6 @@ export default function ProductDetail() {
     setSubmitting(true);
     setReviewMsg({ text: "", ok: true });
     try {
-      // Use perfume._id (not slug) — the reviews route expects the mongo id
       const res  = await fetch(`${API}/perfumes/${perfume._id}/reviews`, {
         method: "POST",
         headers: authHeaders(),
@@ -188,7 +187,6 @@ export default function ProductDetail() {
         setReviewComment("");
         setReviewMsg({ text: "✓ شكراً! سيظهر تقييمك بعد مراجعته من قِبَل الإدارة.", ok: true });
       } else {
-        // Show the actual server error so it's easier to debug
         setReviewMsg({ text: data.message ?? "حدث خطأ في الخادم", ok: false });
       }
     } catch {
@@ -218,18 +216,18 @@ export default function ProductDetail() {
   const mainImg = images[selectedImg]?.url ?? images[0]?.url;
   const isBoth  = perfume.availability === "both";
 
-const displayPrice =
-  activeSection === "full"
-    ? perfume.discount > 0
-      ? perfume.fullBottle?.discountedPrice != null
-        ? Math.round(perfume.fullBottle.discountedPrice)
-        : Math.round(perfume.fullBottle.price * (1 - perfume.discount / 100))
-      : perfume.fullBottle?.price != null
-      ? Math.round(perfume.fullBottle.price)
-      : null
-    : selectedSize?.price != null
-    ? Math.round(selectedSize.price)
-    : null;
+  const displayPrice =
+    activeSection === "full"
+      ? perfume.discount > 0
+        ? perfume.fullBottle?.discountedPrice != null
+          ? Math.round(perfume.fullBottle.discountedPrice)
+          : Math.round(perfume.fullBottle.price * (1 - perfume.discount / 100))
+        : perfume.fullBottle?.price != null
+        ? Math.round(perfume.fullBottle.price)
+        : null
+      : selectedSize?.price != null
+      ? Math.round(selectedSize.price)
+      : null;
 
   const originalPrice =
     activeSection === "full" && perfume.discount > 0
@@ -408,7 +406,7 @@ const displayPrice =
           {isBoth && (
             <div className="pd-section-tabs">
               <button className={`pd-section-tab ${activeSection === "full" ? "active" : ""}`} onClick={() => switchSection("full")}>
-                <Package size={15} /> قارورة كاملة
+                <Package size={15} /> عبوة كاملة
               </button>
               <button className={`pd-section-tab ${activeSection === "taqseem" ? "active" : ""}`} onClick={() => switchSection("taqseem")}>
                 <Layers size={15} /> تقسيمة
@@ -422,7 +420,7 @@ const displayPrice =
               <span className="pd-crosslink-text">
                 {activeSection === "full"
                   ? "هذا العطر متوفر أيضاً كتقسيمة — انقر للتبديل"
-                  : "هذا العطر متوفر أيضاً كقارورة كاملة — انقر للتبديل"}
+                  : "هذا العطر متوفر أيضاً كعبوة كاملة — انقر للتبديل"}
               </span>
               <ChevronLeft size={15} />
             </div>
@@ -439,10 +437,10 @@ const displayPrice =
               </span>
             </div>
             {activeSection === "full" && perfume.fullBottle?.size_ml && (
-              <span className="pd-price-sub">قارورة {perfume.fullBottle.size_ml} مل</span>
+              <span className="pd-price-sub">عبوة {perfume.fullBottle.size_ml} مل</span>
             )}
             {activeSection === "taqseem" && perfume.taqseem?.sourceBottle_ml && (
-              <span className="pd-price-sub">تقسيمات من قارورة {perfume.taqseem.sourceBottle_ml} مل</span>
+              <span className="pd-price-sub">تقسيمات من عبوة {perfume.taqseem.sourceBottle_ml} مل</span>
             )}
           </div>
 
@@ -499,7 +497,6 @@ const displayPrice =
                 عرض السلة
               </button>
             )}
-            {/* Wishlist only — share button removed */}
             <button
               className="pd-wishlist-btn"
               title={inWishlist ? "إزالة من المفضلة" : "إضافة للمفضلة"}
@@ -526,45 +523,43 @@ const displayPrice =
             <span className="pd-meta-badge mb-gender">
               {perfume.gender === "male" ? "رجالي" : perfume.gender === "female" ? "نسائي" : "مشترك"}
             </span>
-{(() => {
-  const FAMILY_AR = {
-    // قديم
-    fresh:    "منعش",
-    citrus:   "الحمضيات",
-    aquatic:  "المائيات",
-    floral:   "الأزهار",
-    oriental: "شرقي",
-    Spicy:    "التوابل",
-    gourmand: "الغورماند",
-    woody:    "الأخشاب",
-    chypre:   "شيبر",
-    fougere:  "السرخسيات",
-    oud:      "العود",
-    Musk:     "المسك",
-    Fruity:   "الفواكه",
-    other:    "أخرى",
-    // جديد
-    green:       "الروائح الخضراء",
-    fruity:      "الفواكه",
-    ambery:      "العنبرية",
-    spicy:       "التوابل",
-    mossy_woods: "الأخشاب الطحلبية",
-    leather:     "الجلود",
-    taif_rose:   "الورد الطائفي",
-  };
+            {(() => {
+              const FAMILY_AR = {
+                fresh:       "منعش",
+                citrus:      "الحمضيات",
+                aquatic:     "المائيات",
+                floral:      "الأزهار",
+                oriental:    "شرقي",
+                Spicy:       "التوابل",
+                gourmand:    "الغورماند",
+                woody:       "الأخشاب",
+                chypre:      "شيبر",
+                fougere:     "السرخسيات",
+                oud:         "العود",
+                Musk:        "المسك",
+                Fruity:      "الفواكه",
+                other:       "أخرى",
+                green:       "الروائح الخضراء",
+                fruity:      "الفواكه",
+                ambery:      "العنبرية",
+                spicy:       "التوابل",
+                mossy_woods: "الأخشاب الطحلبية",
+                leather:     "الجلود",
+                taif_rose:   "الورد الطائفي",
+              };
 
-  const families = Array.isArray(perfume.fragranceFamily)
-    ? perfume.fragranceFamily
-    : perfume.fragranceFamily
-    ? [perfume.fragranceFamily]
-    : [];
+              const families = Array.isArray(perfume.fragranceFamily)
+                ? perfume.fragranceFamily
+                : perfume.fragranceFamily
+                ? [perfume.fragranceFamily]
+                : [];
 
-  return families.map((f) => (
-    <span key={f} className="pd-meta-badge mb-family">
-      {FAMILY_AR[f] ?? f}
-    </span>
-  ));
-})()}
+              return families.map((f) => (
+                <span key={f} className="pd-meta-badge mb-family">
+                  {FAMILY_AR[f] ?? f}
+                </span>
+              ));
+            })()}
             <span className="pd-meta-badge" style={{ background: "#f5f5f5", color: "#888" }}>
               {availLabel[perfume.availability]}
             </span>
