@@ -16,9 +16,33 @@ const statusMap = {
   cancelled: { label: "ملغي", color: "#c0392b", bg: "#fef2f2" },
 };
 
+/* ── Build a full, labeled address for display, regardless of whether the
+   order came from a logged-in user (order.shippingAddress) or a guest
+   (order.guestRegion / guestGovernorate / guestCity / guestStreet) ──────── */
+function getAddressRows(order) {
+  if (order.shippingAddress) {
+    const a = order.shippingAddress;
+    return [
+      ["المنطقة", a.region],
+      ["المحافظة", a.governorate],
+      ["المدينة / البلدة", a.city],
+      ["الحي / المنطقة", a.area],
+      ["الشارع", a.street],
+    ].filter(([, val]) => Boolean(val));
+  }
+  return [
+    ["المنطقة", order.guestRegion],
+    ["المحافظة", order.guestGovernorate],
+    ["المدينة / البلدة", order.guestCity],
+    ["الشارع", order.guestStreet],
+  ].filter(([, val]) => Boolean(val));
+}
+
 function OrderDetail({ order, onClose, onStatusChange }) {
   const [updating, setUpdating] = useState(false);
   const st = statusMap[order.status] ?? statusMap.pending;
+  const addressRows = getAddressRows(order);
+  const notes = order.shippingAddress?.notes ?? order.notes;
 
   const handleStatus = async (newStatus) => {
     setUpdating(true);
@@ -58,7 +82,6 @@ function OrderDetail({ order, onClose, onStatusChange }) {
           <div className="od-section">
             <div className="od-stitle">معلومات العميل</div>
             <div className="od-info-grid">
-              
               <div className="od-info">
                 <span className="od-info-label">الاسم</span>
                 <span className="od-info-val">
@@ -83,29 +106,35 @@ function OrderDetail({ order, onClose, onStatusChange }) {
                   {order.phone ?? order.guestPhone ?? "—"}
                 </span>
               </div>
-              <div className="od-info">
-                <span className="od-info-label">
-                  <MapPin size={12} /> العنوان
-                </span>
-                <span className="od-info-val">
-                  {[
-                    order.shippingAddress?.city,
-                    order.shippingAddress?.area,
-                    order.shippingAddress?.street,
-                  ]
-                    .filter(Boolean)
-                    .join("، ")}
-                </span>
-              </div>
-              {order.shippingAddress?.notes && (
-                <div className="od-info" style={{ gridColumn: "1/-1" }}>
-                  <span className="od-info-label">ملاحظات</span>
-                  <span className="od-info-val">
-                    {order.shippingAddress.notes}
-                  </span>
-                </div>
-              )}
             </div>
+          </div>
+
+          <div className="od-section">
+            <div className="od-stitle">
+              <MapPin size={12} style={{ verticalAlign: "-2px" }} /> العنوان الكامل
+            </div>
+            {addressRows.length > 0 ? (
+              <div className="od-address-block">
+                {addressRows.map(([label, val]) => (
+                  <div key={label} className="od-address-row">
+                    <span className="od-address-label">{label}</span>
+                    <span className="od-address-val">{val}</span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <span style={{ color: "#aaa", fontSize: "0.84rem" }}>
+                لا يوجد عنوان مسجل
+              </span>
+            )}
+            {notes && (
+              <div className="od-address-block" style={{ marginTop: "0.6rem" }}>
+                <div className="od-address-row">
+                  <span className="od-address-label">ملاحظات</span>
+                  <span className="od-address-val">{notes}</span>
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="od-section">
@@ -317,6 +346,11 @@ export default function AdminOrders() {
         .od-info-label { font-size:0.68rem; color:#aaa; display:flex; align-items:center; gap:0.25rem; }
         .od-info-val   { font-size:0.84rem; color:#1a1a1a; }
 
+        .od-address-block { display:flex; flex-direction:column; gap:0.4rem; background:#faf8f6; border-radius:6px; padding:0.8rem 0.95rem; }
+        .od-address-row  { display:flex; justify-content:space-between; gap:0.75rem; font-size:0.84rem; }
+        .od-address-label { color:#aaa; flex-shrink:0; }
+        .od-address-val   { color:#1a1a1a; text-align:left; }
+
         .od-item { display:flex; gap:0.85rem; align-items:center; background:#faf8f6; border-radius:6px; padding:0.7rem; margin-bottom:0.5rem; }
         .od-item-img  { width:46px; height:46px; border-radius:4px; object-fit:cover; flex-shrink:0; }
         .od-item-ph   { width:46px; height:46px; border-radius:4px; background:#e8e2dc; display:flex; align-items:center; justify-content:center; color:#aaa; flex-shrink:0; }
@@ -354,6 +388,8 @@ export default function AdminOrders() {
   .od-overlay{align-items:flex-end;padding:0;}
   .od-body{padding:1rem;}
   .od-info-grid{grid-template-columns:1fr;}
+  .od-address-row{flex-direction:column;gap:0.1rem;}
+  .od-address-val{text-align:right;}
   .od-item{padding:0.55rem;}
   .od-item-img{width:38px;height:38px;}
   .od-item-ph{width:38px;height:38px;}
