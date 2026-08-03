@@ -1,646 +1,1285 @@
 import { useState, useEffect } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import {
-  Star,
   ShoppingBag,
-  ArrowLeftRight,
-  Package,
-  Layers,
-  ChevronLeft,
+  Trash2,
+  Plus,
+  Minus,
   Loader2,
-  Send,
-  ArrowRight,
+  MapPin,
+  Phone,
+  Tag,
+  ArrowLeft,
+  Package,
+  User,
   CheckCircle,
-  Heart,
+  Edit3,
+  Save,
+  X,
+  StickyNote,
+  ChevronDown,
 } from "lucide-react";
-import { guestCartAdd } from "./Cart";
 
-const API = import.meta.env.VITE_API_URL || "/api";
+const API = import.meta.env.VITE_API_URL || "/api";;
 const getToken = () => localStorage.getItem("sp_token");
 const authHeaders = () => ({
   "Content-Type": "application/json",
-  ...(getToken() ? { Authorization: `Bearer ${getToken()}` } : {}),
+  Authorization: `Bearer ${getToken()}`,
 });
 
-const availLabel = {
-  full_only:    "قارورة كاملة فقط",
-  taqseem_only: "تقسيمة فقط",
-  both:         "كاملة وتقسيمة",
-};
+/* ── Guest cart helpers ─────────────────────────────────────────────────── */
+const GUEST_CART_KEY = "sp_guest_cart";
 
-/* ── Star Rating ── */
-function StarRating({ value, onChange, readonly }) {
-  const [hovered, setHovered] = useState(0);
-  return (
-    <div style={{ display: "flex", gap: "3px" }}>
-      {[1, 2, 3, 4, 5].map((i) => (
-        <Star
-          key={i}
-          size={18}
-          fill={(readonly ? value : hovered || value) >= i ? "#452829" : "none"}
-          color={(readonly ? value : hovered || value) >= i ? "#452829" : "#ddd"}
-          style={{ cursor: readonly ? "default" : "pointer", transition: "all 0.15s" }}
-          onMouseEnter={() => !readonly && setHovered(i)}
-          onMouseLeave={() => !readonly && setHovered(0)}
-          onClick={() => !readonly && onChange?.(i)}
-        />
-      ))}
-    </div>
+export function guestCartAdd(item) {
+  const cart = guestCartGet();
+  const idx = cart.findIndex(
+    (i) =>
+      i.perfumeId === item.perfumeId &&
+      i.section === item.section &&
+      i.size === item.size,
+  );
+  if (idx >= 0) {
+    cart[idx].quantity += item.quantity ?? 1;
+  } else {
+    cart.push({
+      ...item,
+      _guestId: "g_" + Date.now() + "_" + Math.floor(Math.random() * 9999),
+      quantity: item.quantity ?? 1,
+    });
+  }
+  sessionStorage.setItem(GUEST_CART_KEY, JSON.stringify(cart));
+}
+
+export function guestCartGet() {
+  try {
+    return JSON.parse(sessionStorage.getItem(GUEST_CART_KEY) ?? "[]");
+  } catch {
+    return [];
+  }
+}
+
+function guestCartSave(items) {
+  sessionStorage.setItem(
+    GUEST_CART_KEY,
+    JSON.stringify(items.map(({ perfume, ...rest }) => rest)),
   );
 }
 
-/* ── Main Component ── */
-export default function ProductDetail() {
-  const { slug, section } = useParams();
+/* ── Regions ────────────────────────────────────────────────────────────── */
+const REGIONS = [
+  { label: "الضفة الغربية", value: "west_bank", shipping: 20 },
+  { label: "القدس", value: "jerusalem", shipping: 35 },
+  { label: "الداخل المحتل (48)", value: "inside_48", shipping: 75 },
+];
+
+/* ── Governorates (West Bank) ───────────────────────────────────────────── */
+const WEST_BANK_GOVERNORATES = [
+  "سلفيت",
+  "نابلس",
+  "رام الله والبيرة",
+  "جنين",
+  "طولكرم",
+  "قلقيلية",
+  "أريحا",
+  "الخليل",
+  "بيت لحم",
+  "طوباس",
+];
+
+/* ── Salfit detection (exact match, governorate OR town) ─────────────────
+   The reduced ₪5 rate should only apply when BOTH the governorate AND the
+   specific city/town are exactly "Salfit" — not just when the town name
+   loosely contains the word (e.g. Biddya, Kafr ad-Dik, etc. must NOT match).
+─────────────────────────────────────────────────────────────────────────── */
+const SALFIT_ALIASES = ["salfit", "salfeet", "سلفيت"];
+const isExactSalfit = (val) => {
+  if (!val) return false;
+  return SALFIT_ALIASES.includes(val.trim().toLowerCase());
+};
+
+const canApplySalfitRate = (governorateVal, cityVal) =>
+  isExactSalfit(governorateVal) && isExactSalfit(cityVal);
+
+/* ════════════════════════════════════════════════════════════════════════════
+   MAIN COMPONENT
+   ════════════════════════════════════════════════════════════════════════════ */
+export default function Cart() {
   const navigate = useNavigate();
+  const isLoggedIn = !!getToken();
 
-  const [perfume,         setPerfume]         = useState(null);
-  const [loading,         setLoading]         = useState(true);
-  const [activeSection,   setActiveSection]   = useState(section ?? "full");
-  const [selectedImg,     setSelectedImg]     = useState(0);
-  const [selectedSize,    setSelectedSize]    = useState(null);
-  const [qty,             setQty]             = useState(1);
-  const [cartMsg,         setCartMsg]         = useState("");
-  const [inWishlist,      setInWishlist]      = useState(false);
-  const [wishlistMsg,     setWishlistMsg]     = useState("");
-  const [loadingWishlist, setLoadingWishlist] = useState(false);
-  const [reviewRating,    setReviewRating]    = useState(0);
-  const [reviewComment,   setReviewComment]   = useState("");
-  const [submitting,      setSubmitting]      = useState(false);
-  const [reviewMsg,       setReviewMsg]       = useState({ text: "", ok: true });
+  const [cart, setCart] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [user, setUser] = useState(null);
 
-  useEffect(() => {
-    if (section === "full" || section === "taqseem") setActiveSection(section);
-  }, [section]);
+  /* ── Guest fields ── */
+  const [guestName, setGuestName] = useState("");
+  const [guestPhone, setGuestPhone] = useState("");
+  const [guestRegion, setGuestRegion] = useState("");
+  const [guestGovernorate, setGuestGovernorate] = useState("");
+  const [guestCity, setGuestCity] = useState("");
+  const [guestStreet, setGuestStreet] = useState("");
+  const [guestNotes, setGuestNotes] = useState("");
 
+  /* ── Auth checkout fields ── */
+  const [phone, setPhone] = useState("");
+  const [region, setRegion] = useState("");
+  const [selectedAddrId, setSelectedAddrId] = useState(null);
+  const [governorate, setGovernorate] = useState("");
+  const [city, setCity] = useState("");
+  const [area, setArea] = useState("");
+  const [street, setStreet] = useState("");
+  const [addrNotes, setAddrNotes] = useState("");
+  const [addrLabel, setAddrLabel] = useState("المنزل");
+  const [saveAddr, setSaveAddr] = useState(false);
+  const [orderNotes, setOrderNotes] = useState("");
+
+  /* ── Edit mode ── */
+  const [editingPhone, setEditingPhone] = useState(false);
+  const [editingAddr, setEditingAddr] = useState(false);
+
+  /* ── Promo / order ── */
+  const [promoCode, setPromoCode] = useState("");
+  const [promoApplied, setPromoApplied] = useState(false);
+  const [placing, setPlacing] = useState(false);
+  const [orderDone, setOrderDone] = useState(null);
+  const [error, setError] = useState("");
+
+  /* ── Load ─────────────────────────────────────────────────────────────── */
   useEffect(() => {
     const load = async () => {
       setLoading(true);
-      try {
-        const res  = await fetch(`${API}/perfumes/${slug}`);
-        const data = await res.json();
-        if (data.success) {
-          setPerfume(data.perfume);
-          const avail = data.perfume.availability;
-          if (activeSection === "taqseem" && avail === "full_only")  setActiveSection("full");
-          if (activeSection === "full"    && avail === "taqseem_only") setActiveSection("taqseem");
-          if (data.perfume.taqseem?.sizes?.length) setSelectedSize(data.perfume.taqseem.sizes[0]);
+      if (isLoggedIn) {
+        try {
+          const [cRes, uRes] = await Promise.all([
+            fetch(`${API}/users/cart`, { headers: authHeaders() }),
+            fetch(`${API}/auth/me`, { headers: authHeaders() }),
+          ]);
+          const cData = await cRes.json();
+          const uData = await uRes.json();
 
-          if (getToken()) {
-            try {
-              const wRes  = await fetch(`${API}/users/wishlist`, { headers: authHeaders() });
-              const wData = await wRes.json();
-              if (wData.success) {
-                setInWishlist(wData.wishlist?.some((p) => p._id === data.perfume._id) ?? false);
-              }
-            } catch {}
+          if (cData.success) setCart(cData.cart ?? []);
+          if (uData.success) {
+            const u = uData.user;
+            setUser(u);
+
+            if (u.phone) {
+              setPhone(u.phone);
+              setEditingPhone(false);
+            } else {
+              setEditingPhone(true);
+            }
+
+            const def =
+              u.addresses?.find((a) => a.isDefault) ?? u.addresses?.[0];
+            if (def) {
+              setSelectedAddrId(def._id);
+              setEditingAddr(false);
+            } else {
+              setSelectedAddrId(null);
+              setEditingAddr(true);
+            }
           }
+        } catch {}
+      } else {
+        const raw = guestCartGet();
+        if (raw.length === 0) {
+          setLoading(false);
+          return;
         }
-      } catch {}
+
+        const uniqueSlugs = [
+          ...new Set(raw.map((i) => i.slug).filter(Boolean)),
+        ];
+        if (uniqueSlugs.length > 0) {
+          try {
+            const results = await Promise.all(
+              uniqueSlugs.map((slug) =>
+                fetch(`${API}/perfumes/${slug}`)
+                  .then((r) => r.json())
+                  .then((d) => d.perfume ?? null)
+                  .catch(() => null),
+              ),
+            );
+            const perfumeMap = {};
+            results.forEach((p) => {
+              if (p) {
+                perfumeMap[p.slug] = p;
+                perfumeMap[p._id] = p;
+              }
+            });
+            setCart(
+              raw.map((item) => ({
+                ...item,
+                perfume:
+                  perfumeMap[item.slug] ?? perfumeMap[item.perfumeId] ?? null,
+              })),
+            );
+          } catch {
+            setCart(raw);
+          }
+        } else {
+          setCart(raw);
+        }
+      }
       setLoading(false);
     };
     load();
-  }, [slug]);
+  }, []);
 
-  const switchSection = (sec) => {
-    setActiveSection(sec);
-    navigate(`/shop/${slug}/${sec}`, { replace: true });
-  };
-
-  const handleAddToCart = async () => {
-    if (activeSection === "taqseem" && !selectedSize) return;
-    if (getToken()) {
-      try {
-        const res  = await fetch(`${API}/users/cart`, {
-          method: "POST",
-          headers: authHeaders(),
-          body: JSON.stringify({
-            perfumeId: perfume._id,
-            section:   activeSection,
-            size:      activeSection === "taqseem" ? selectedSize?.ml : undefined,
-            quantity:  qty,
-          }),
-        });
-        const data = await res.json();
-        if (data.success) {
-          setCartMsg("تمت الإضافة ✓");
-          setTimeout(() => setCartMsg(""), 2500);
-        } else {
-          setCartMsg(data.message ?? "خطأ");
-        }
-      } catch {
-        setCartMsg("خطأ في الاتصال");
+  /* ── Price helper ───────────────────────────────────────────────────────── */
+  const getItemPrice = (item) => {
+    const p = item.perfume;
+    if (!p) return 0;
+    if (item.section === "full") {
+      const base = p.fullBottle?.price ?? 0;
+      if (p.discount >= 1) {
+        return p.fullBottle?.discountedPrice != null
+          ? Math.round(p.fullBottle.discountedPrice)
+          : Math.round(base - (base * p.discount) / 100);
       }
-    } else {
-      guestCartAdd({
-        perfumeId: perfume._id,
-        slug:      perfume.slug,
-        name:      perfume.name,
-        brand:     perfume.brand,
-        section:   activeSection,
-        size:      activeSection === "taqseem" ? selectedSize?.ml : null,
-        quantity:  qty,
-      });
-      setCartMsg("تمت الإضافة ✓");
-      setTimeout(() => setCartMsg(""), 2500);
+      return base;
     }
+    return p.taqseem?.sizes?.find((s) => s.ml === item.size)?.price ?? 0;
   };
 
-  const handleWishlist = async () => {
-    if (!getToken()) { navigate("/auth"); return; }
-    setLoadingWishlist(true);
-    try {
-      const res  = await fetch(`${API}/users/wishlist/${perfume._id}`, { method: "POST", headers: authHeaders() });
-      const data = await res.json();
-      if (data.success) {
-        const nowIn = !inWishlist;
-        setInWishlist(nowIn);
-        setWishlistMsg(nowIn ? "أُضيف للمفضلة" : "أُزيل من المفضلة");
-        setTimeout(() => setWishlistMsg(""), 2000);
-      }
-    } catch {}
-    setLoadingWishlist(false);
-  };
-
-  const handleReview = async (e) => {
-    e.preventDefault();
-    if (!getToken()) { navigate("/auth"); return; }
-    if (!reviewRating) {
-      setReviewMsg({ text: "يرجى اختيار تقييم", ok: false });
-      return;
-    }
-    if (!reviewComment.trim()) {
-      setReviewMsg({ text: "يرجى كتابة تعليق", ok: false });
-      return;
-    }
-    setSubmitting(true);
-    setReviewMsg({ text: "", ok: true });
-    try {
-      // Use perfume._id (not slug) — the reviews route expects the mongo id
-      const res  = await fetch(`${API}/perfumes/${perfume._id}/reviews`, {
-        method: "POST",
-        headers: authHeaders(),
-        body: JSON.stringify({ rating: reviewRating, comment: reviewComment }),
-      });
-      const data = await res.json();
-      if (data.success) {
-        setReviewRating(0);
-        setReviewComment("");
-        setReviewMsg({ text: "✓ شكراً! سيظهر تقييمك بعد مراجعته من قِبَل الإدارة.", ok: true });
-      } else {
-        // Show the actual server error so it's easier to debug
-        setReviewMsg({ text: data.message ?? "حدث خطأ في الخادم", ok: false });
-      }
-    } catch {
-      setReviewMsg({ text: "خطأ في الاتصال بالخادم", ok: false });
-    }
-    setSubmitting(false);
-  };
-
-  /* ── Loading / not found ── */
-  if (loading) return (
-    <div style={{ minHeight: "60vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
-      <Loader2 size={28} style={{ animation: "spin 1s linear infinite", color: "#452829" }} />
-      <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
-    </div>
+  /* ── Shipping fee (with Salfit special case) ────────────────────────────── */
+  const activeRegion = REGIONS.find(
+    (r) => r.value === (isLoggedIn ? region : guestRegion),
   );
-
-  if (!perfume) return (
-    <div style={{ minHeight: "60vh", display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: "1rem", fontFamily: "Tajawal,sans-serif", direction: "rtl" }}>
-      <h2 style={{ fontFamily: "Playfair Display,serif" }}>العطر غير موجود</h2>
-      <button onClick={() => navigate("/shop")} style={{ background: "#452829", color: "white", border: "none", padding: "0.7rem 1.8rem", borderRadius: 4, cursor: "pointer", fontFamily: "Tajawal,sans-serif" }}>
-        العودة للمتجر
-      </button>
-    </div>
-  );
-
-  const images  = perfume.images ?? [];
-  const mainImg = images[selectedImg]?.url ?? images[0]?.url;
-  const isBoth  = perfume.availability === "both";
-
-const displayPrice =
-  activeSection === "full"
-    ? perfume.discount > 0
-      ? perfume.fullBottle?.discountedPrice != null
-        ? Math.round(perfume.fullBottle.discountedPrice)
-        : Math.round(perfume.fullBottle.price * (1 - perfume.discount / 100))
-      : perfume.fullBottle?.price != null
-      ? Math.round(perfume.fullBottle.price)
-      : null
-    : selectedSize?.price != null
-    ? Math.round(selectedSize.price)
-    : null;
-
-  const originalPrice =
-    activeSection === "full" && perfume.discount > 0
-      ? Math.round(perfume.fullBottle?.price)
+  const cityForShipping = isLoggedIn
+    ? selectedAddrId && !editingAddr
+      ? user?.addresses?.find((a) => a._id === selectedAddrId)?.city ?? city
+      : city
+    : guestCity;
+  const governorateForShipping = isLoggedIn
+    ? selectedAddrId && !editingAddr
+      ? (user?.addresses?.find((a) => a._id === selectedAddrId)
+          ?.governorate ?? governorate)
+      : governorate
+    : guestGovernorate;
+  const shippingFee =
+    activeRegion != null
+      ? canApplySalfitRate(governorateForShipping, cityForShipping)
+        ? 5
+        : activeRegion.shipping
       : null;
 
-  const discountPct = perfume.discount > 0 ? Math.round(perfume.discount) : 0;
+  const PROMO_DISC = 0.2;
+  const itemsPrice = cart.reduce(
+    (sum, i) => sum + getItemPrice(i) * i.quantity,
+    0,
+  );
+  const discountAmt = promoApplied ? Math.round(itemsPrice * PROMO_DISC) : 0;
+  const totalPrice =
+    shippingFee != null ? itemsPrice + shippingFee - discountAmt : null;
 
+  const selectedAddr = user?.addresses?.find((a) => a._id === selectedAddrId);
+
+  /* ── Guest qty/remove ── */
+  const updateQtyGuest = (gid, delta) => {
+    const updated = cart.map((i) =>
+      i._guestId === gid
+        ? { ...i, quantity: Math.max(1, i.quantity + delta) }
+        : i,
+    );
+    setCart(updated);
+    guestCartSave(updated);
+  };
+  const removeGuest = (gid) => {
+    const updated = cart.filter((i) => i._guestId !== gid);
+    setCart(updated);
+    guestCartSave(updated);
+  };
+
+  /* ── Auth qty/remove ── */
+  const updateQtyAuth = async (itemId, qty) => {
+    if (qty < 1) {
+      removeAuth(itemId);
+      return;
+    }
+    try {
+      await fetch(`${API}/users/cart/${itemId}`, {
+        method: "PUT",
+        headers: authHeaders(),
+        body: JSON.stringify({ quantity: qty }),
+      });
+      const r = await fetch(`${API}/users/cart`, { headers: authHeaders() });
+      const d = await r.json();
+      if (d.success) setCart(d.cart ?? []);
+    } catch {}
+  };
+  const removeAuth = async (itemId) => {
+    try {
+      await fetch(`${API}/users/cart/${itemId}`, {
+        method: "DELETE",
+        headers: authHeaders(),
+      });
+      setCart((prev) => prev.filter((i) => i._id !== itemId));
+    } catch {}
+  };
+
+  /* ── Place guest order ── */
+  const placeOrderGuest = async () => {
+    setError("");
+    if (!guestName.trim()) {
+      setError("يرجى إدخال الاسم الكامل");
+      return;
+    }
+    if (!guestPhone.trim()) {
+      setError("يرجى إدخال رقم الهاتف");
+      return;
+    }
+    if (!guestRegion) {
+      setError("يرجى اختيار المنطقة");
+      return;
+    }
+    if (!guestGovernorate) {
+      setError("يرجى اختيار المحافظة");
+      return;
+    }
+    if (!guestCity.trim()) {
+      setError("يرجى إدخال المدينة / البلدة");
+      return;
+    }
+    if (!guestStreet.trim()) {
+      setError("يرجى إدخال الشارع");
+      return;
+    }
+    setPlacing(true);
+    try {
+      const res = await fetch(`${API}/orders/guest`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          guestName,
+          guestPhone,
+          guestGovernorate,
+          guestCity: `${activeRegion?.label} - ${guestGovernorate} - ${guestCity}`,
+          guestStreet,
+          notes: guestNotes,
+          items: cart.map((item) => ({
+            perfumeId: item.perfumeId,
+            name: item.perfume?.name ?? item.name ?? "—",
+            brand: item.perfume?.brand ?? item.brand ?? "—",
+            image:
+              item.perfume?.images?.find((i) => i.isMain)?.url ??
+              item.perfume?.images?.[0]?.url ??
+              null,
+            section: item.section,
+            size: item.section === "taqseem" ? item.size : null,
+            quantity: item.quantity,
+            price: getItemPrice(item),
+          })),
+          itemsPrice,
+          shippingPrice: shippingFee,
+          discount: discountAmt,
+          totalPrice,
+          promoCode: promoApplied ? promoCode : undefined,
+          paymentMethod: "cash_on_delivery",
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setOrderDone(data.order);
+        sessionStorage.removeItem(GUEST_CART_KEY);
+      } else setError(data.message ?? "حدث خطأ، حاول مجدداً");
+    } catch {
+      setError("تعذّر الاتصال بالخادم");
+    }
+    setPlacing(false);
+  };
+
+  /* ── Place auth order ── */
+  const placeOrderAuth = async () => {
+    setError("");
+    if (!phone.trim()) {
+      setError("يرجى إدخال رقم الهاتف");
+      return;
+    }
+    if (!region) {
+      setError("يرجى اختيار المنطقة");
+      return;
+    }
+
+    let shippingAddress;
+    if (selectedAddr && !editingAddr) {
+      shippingAddress = {
+        governorate: selectedAddr.governorate ?? "",
+        city: `${activeRegion?.label} - ${selectedAddr.city}`,
+        area: selectedAddr.area ?? "",
+        street: selectedAddr.street ?? "",
+        notes: orderNotes,
+      };
+    } else {
+      if (!governorate) {
+        setError("يرجى اختيار المحافظة");
+        return;
+      }
+      if (!city.trim()) {
+        setError("يرجى إدخال المدينة");
+        return;
+      }
+      if (!area.trim()) {
+        setError("يرجى إدخال المنطقة / الحي");
+        return;
+      }
+      if (!street.trim()) {
+        setError("يرجى إدخال الشارع");
+        return;
+      }
+      shippingAddress = {
+        governorate,
+        city: `${activeRegion?.label} - ${city}`,
+        area,
+        street,
+        notes: orderNotes,
+      };
+    }
+
+    const profileChanged =
+      phone !== (user?.phone ?? "") || (!selectedAddr && city.trim());
+
+    const items = cart.map((item) => ({
+      perfume: item.perfume._id,
+      name: item.perfume.name,
+      brand: item.perfume.brand,
+      image:
+        item.perfume.images?.find((i) => i.isMain)?.url ??
+        item.perfume.images?.[0]?.url,
+      section: item.section,
+      size_ml: item.size ?? null,
+      quantity: item.quantity,
+      price: getItemPrice(item),
+    }));
+
+    setPlacing(true);
+    try {
+      const res = await fetch(`${API}/orders`, {
+        method: "POST",
+        headers: authHeaders(),
+        body: JSON.stringify({
+          items,
+          phone,
+          shippingAddress,
+          itemsPrice,
+          shippingPrice: shippingFee,
+          discount: discountAmt,
+          totalPrice,
+          promoCode: promoApplied ? promoCode : undefined,
+          paymentMethod: "cash_on_delivery",
+          updateProfile: profileChanged,
+          newAddress: !selectedAddr && city.trim() && saveAddr,
+          addressLabel: addrLabel,
+          setAsDefault: !user?.addresses?.length,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) setOrderDone(data.order);
+      else setError(data.message ?? "حدث خطأ");
+    } catch {
+      setError("خطأ في الاتصال");
+    }
+    setPlacing(false);
+  };
+
+  /* ══════════════════════════════════════════════════════════════════════════
+     ORDER SUCCESS SCREEN
+     ══════════════════════════════════════════════════════════════════════════ */
+  if (orderDone)
+    return (
+      <>
+        <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&family=Tajawal:wght@400;500;700&display=swap');
+        body{font-family:'Tajawal',sans-serif;direction:rtl;background:#fff;}
+        @keyframes pop{0%{transform:scale(0.5);opacity:0}70%{transform:scale(1.1)}100%{transform:scale(1);opacity:1}}
+        @keyframes rise{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
+      `}</style>
+        <div
+          style={{
+            minHeight: "80vh",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "2rem",
+            textAlign: "center",
+            direction: "rtl",
+            flexDirection: "column",
+            gap: "1.2rem",
+          }}
+        >
+          <div
+            style={{
+              width: 80,
+              height: 80,
+              background: "#f0fdf4",
+              borderRadius: "50%",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              animation: "pop 0.5s ease both",
+            }}
+          >
+            <CheckCircle size={40} color="#2e7d5a" strokeWidth={1.5} />
+          </div>
+          <h2
+            style={{
+              fontFamily: "Playfair Display,serif",
+              fontSize: "1.8rem",
+              color: "#1a1a1a",
+              animation: "rise 0.5s 0.15s ease both",
+              opacity: 0,
+            }}
+          >
+            تم تقديم طلبك!
+          </h2>
+          <p
+            style={{
+              color: "#888",
+              fontSize: "0.95rem",
+              maxWidth: 340,
+              lineHeight: 1.7,
+              animation: "rise 0.5s 0.25s ease both",
+              opacity: 0,
+            }}
+          >
+            سنتواصل معك قريباً لتأكيد الطلب وتحديد موعد التوصيل.
+          </p>
+          <div
+            style={{
+              background: "#faf8f6",
+              border: "1px solid #e8e2dc",
+              borderRadius: 8,
+              padding: "1rem 2rem",
+              fontSize: "0.88rem",
+              color: "#555",
+              animation: "rise 0.5s 0.35s ease both",
+              opacity: 0,
+            }}
+          >
+            رقم الطلب:{" "}
+            <strong
+              style={{ color: "#452829", fontFamily: "Playfair Display,serif" }}
+            >
+              SP-{orderDone._id?.slice(-5).toUpperCase()}
+            </strong>
+          </div>
+          <div
+            style={{
+              display: "flex",
+              gap: "0.8rem",
+              flexWrap: "wrap",
+              justifyContent: "center",
+              animation: "rise 0.5s 0.45s ease both",
+              opacity: 0,
+            }}
+          >
+            <button
+              onClick={() => navigate("/")}
+              style={{
+                background: "#452829",
+                color: "white",
+                border: "none",
+                padding: "0.75rem 1.8rem",
+                borderRadius: 5,
+                fontFamily: "Tajawal,sans-serif",
+                fontWeight: 700,
+                cursor: "pointer",
+              }}
+            >
+              الرئيسية
+            </button>
+            <button
+              onClick={() => navigate("/shop")}
+              style={{
+                background: "white",
+                color: "#452829",
+                border: "1.5px solid #e8e2dc",
+                padding: "0.75rem 1.8rem",
+                borderRadius: 5,
+                fontFamily: "Tajawal,sans-serif",
+                fontWeight: 700,
+                cursor: "pointer",
+              }}
+            >
+              مواصلة التسوق
+            </button>
+          </div>
+        </div>
+      </>
+    );
+
+  /* ══════════════════════════════════════════════════════════════════════════
+     MAIN CART PAGE
+     ══════════════════════════════════════════════════════════════════════════ */
   return (
     <>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&family=Tajawal:wght@300;400;500;700&display=swap');
-        :root{--bob:#452829;--bob-l:#5c3637;--black:#1a1a1a;--gray:#888;--border:#e8e2dc;--off:#faf8f6;}
+        @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=Tajawal:wght@300;400;500;700&display=swap');
+        :root{--bob:#452829;--bob-l:#5c3637;--border:#e8e2dc;--off:#faf8f6;--black:#1a1a1a;--gray:#888;--green:#2e7d5a;--green-bg:#f0fdf4;}
         *{box-sizing:border-box;margin:0;padding:0;}
         body{font-family:'Tajawal',sans-serif;direction:rtl;background:#fff;color:#1a1a1a;}
         @keyframes spin{to{transform:rotate(360deg)}}
-        @keyframes fadeIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+        @keyframes fadeSlide{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
 
-        .pd-back-btn{display:inline-flex;align-items:center;gap:0.4rem;background:none;border:1.5px solid var(--border);border-radius:4px;padding:0.4rem 0.9rem;font-family:'Tajawal',sans-serif;font-size:0.82rem;color:#666;cursor:pointer;transition:all 0.2s;margin:1.2rem 2rem 0.5rem;max-width:fit-content;}
-        .pd-back-btn:hover{border-color:var(--bob);color:var(--bob);}
+        .cart-header{padding:2rem 2rem 0;max-width:1400px;margin:0 auto;}
+        .cart-title{font-family:'Playfair Display',serif;font-size:2rem;color:var(--black);font-weight:700;margin-bottom:0.3rem;}
+        .cart-sub{font-size:0.88rem;color:var(--gray);}
+        .cart-layout{max-width:1400px;margin:0 auto;padding:2rem;display:grid;grid-template-columns:1fr 420px;gap:2rem;align-items:start;}
 
-        .pd-breadcrumb{display:flex;align-items:center;gap:0.5rem;padding:0.6rem 2rem 1rem;font-size:0.78rem;color:#aaa;max-width:1400px;margin:0 auto;flex-wrap:wrap;}
-        .pd-breadcrumb a{color:#aaa;text-decoration:none;transition:color 0.2s;cursor:pointer;}
-        .pd-breadcrumb a:hover{color:var(--bob);}
-        .pd-breadcrumb span{color:#ccc;}
+        .cart-item{display:flex;gap:1.2rem;padding:1.3rem 0;border-bottom:1px solid var(--border);align-items:center;}
+        .cart-item:last-child{border-bottom:none;}
+        .ci-img-wrap{width:86px;height:86px;border-radius:6px;overflow:hidden;background:var(--off);flex-shrink:0;}
+        .ci-img{width:100%;height:100%;object-fit:cover;display:block;}
+        .ci-img-ph{width:100%;height:100%;display:flex;align-items:center;justify-content:center;color:#ccc;}
+        .ci-body{flex:1;min-width:0;display:flex;flex-direction:column;gap:0.25rem;}
+        .ci-brand{font-size:0.63rem;letter-spacing:0.14em;text-transform:uppercase;color:#aaa;}
+        .ci-name{font-family:'Playfair Display',serif;font-size:0.98rem;color:var(--black);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+        .ci-section{font-size:0.74rem;color:var(--gray);}
+        .ci-right{display:flex;flex-direction:column;align-items:flex-end;gap:0.55rem;flex-shrink:0;}
+        .ci-price{font-family:'Playfair Display',serif;font-size:1rem;color:var(--bob);font-weight:700;}
+        .ci-qty{display:flex;align-items:center;border:1.5px solid var(--border);border-radius:5px;overflow:hidden;}
+        .ci-qty-btn{background:none;border:none;width:30px;height:30px;cursor:pointer;font-size:1rem;color:var(--black);display:flex;align-items:center;justify-content:center;transition:background 0.2s;}
+        .ci-qty-btn:hover{background:var(--off);}
+        .ci-qty-num{width:32px;text-align:center;font-size:0.85rem;font-weight:600;}
+        .ci-remove{background:none;border:none;color:#ccc;cursor:pointer;padding:0.2rem;border-radius:4px;display:flex;transition:color 0.2s;}
+        .ci-remove:hover{color:#c0392b;}
 
-        .pd-main{max-width:1400px;margin:0 auto;padding:0 2rem 4rem;display:grid;grid-template-columns:1fr 1fr;gap:4rem;align-items:start;}
+        .cart-empty{text-align:center;padding:4rem 2rem;display:flex;flex-direction:column;align-items:center;gap:1rem;color:var(--gray);}
+        .cart-empty h2{font-family:'Playfair Display',serif;color:var(--black);}
 
-        .pd-gallery{position:sticky;top:100px;}
-        .pd-main-img-wrap{position:relative;background:var(--off);border-radius:8px;overflow:hidden;aspect-ratio:1;margin-bottom:0.8rem;}
-        .pd-main-img{width:100%;height:100%;object-fit:cover;transition:transform 0.5s ease;}
-        .pd-main-img-wrap:hover .pd-main-img{transform:scale(1.04);}
-        .pd-img-ph{width:100%;height:100%;display:flex;align-items:center;justify-content:center;color:#ccc;}
-        .pd-discount-badge{position:absolute;top:1rem;right:1rem;background:var(--black);color:white;font-size:0.72rem;font-weight:700;padding:0.25rem 0.6rem;border-radius:3px;}
-        .pd-thumbs{display:flex;gap:0.6rem;flex-wrap:wrap;}
-        .pd-thumb{width:68px;height:68px;border-radius:5px;overflow:hidden;cursor:pointer;border:2px solid transparent;transition:border-color 0.2s;}
-        .pd-thumb.active{border-color:var(--bob);}
-        .pd-thumb img{width:100%;height:100%;object-fit:cover;}
+        .cart-summary{background:var(--off);border:1px solid var(--border);border-radius:10px;padding:1.5rem;position:sticky;top:100px;}
+        .cs-title{font-family:'Playfair Display',serif;font-size:1.15rem;color:var(--black);font-weight:700;margin-bottom:1.3rem;}
+        .delivery-alert{background:#fff1f1;border:1px solid #f5bcbc;color:#b42318;padding:0.7rem 0.85rem;border-radius:6px;font-size:0.76rem;line-height:1.7;margin-top:0.45rem;}
+        .salfit-badge{background:#f0fdf4;border:1px solid #b3e0ca;color:#2e7d5a;padding:0.32rem 0.65rem;border-radius:4px;font-size:0.73rem;font-weight:700;margin:0.3rem 0 0.6rem;display:inline-flex;align-items:center;gap:0.3rem;}
 
-        .pd-info{animation:fadeIn 0.5s ease both;}
-        .pd-brand{font-size:0.7rem;letter-spacing:0.22em;text-transform:uppercase;color:#aaa;font-weight:600;display:block;margin-bottom:0.4rem;}
-        .pd-name{font-family:'Playfair Display',serif;font-size:clamp(1.8rem,3vw,2.6rem);color:var(--black);font-weight:700;line-height:1.2;margin-bottom:0.75rem;}
-        .pd-rating-row{display:flex;align-items:center;gap:0.6rem;margin-bottom:1.2rem;}
-        .pd-rating-count{font-size:0.78rem;color:#aaa;}
+        .section-hd{display:flex;align-items:center;justify-content:space-between;margin-bottom:0.5rem;}
+        .section-label{font-size:0.67rem;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:#aaa;display:flex;align-items:center;gap:0.35rem;}
+        .edit-btn{background:none;border:1px solid var(--border);color:#aaa;font-family:'Tajawal',sans-serif;font-size:0.72rem;padding:0.18rem 0.55rem;border-radius:4px;cursor:pointer;display:flex;align-items:center;gap:0.25rem;transition:all 0.2s;}
+        .edit-btn:hover{border-color:var(--bob);color:var(--bob);}
+        .edit-btn.active{background:var(--bob);color:white;border-color:var(--bob);}
 
-        .pd-section-tabs{display:flex;border:1.5px solid var(--border);border-radius:6px;overflow:hidden;margin-bottom:1.4rem;}
-        .pd-section-tab{flex:1;padding:0.7rem;background:none;border:none;font-family:'Tajawal',sans-serif;font-size:0.88rem;font-weight:500;color:#aaa;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:0.4rem;transition:all 0.2s;}
-        .pd-section-tab:first-child{border-left:1.5px solid var(--border);}
-        .pd-section-tab.active{background:var(--bob);color:white;font-weight:700;}
+        .data-pill{background:white;border:1.5px solid var(--border);border-radius:6px;padding:0.6rem 0.85rem;font-size:0.87rem;color:var(--black);margin-bottom:0.6rem;display:flex;align-items:center;gap:0.5rem;line-height:1.4;}
+        .data-pill-icon{color:#aaa;flex-shrink:0;}
+        .data-pill-main{flex:1;}
+        .data-pill-sub{font-size:0.74rem;color:#aaa;display:block;margin-top:0.1rem;}
 
-        .pd-crosslink{display:flex;align-items:center;gap:0.6rem;background:rgba(69,40,41,0.06);border:1px solid rgba(69,40,41,0.2);border-radius:6px;padding:0.7rem 1rem;margin-bottom:1.2rem;cursor:pointer;transition:background 0.2s;}
-        .pd-crosslink:hover{background:rgba(69,40,41,0.1);}
-        .pd-crosslink-text{font-size:0.82rem;color:var(--bob);flex:1;}
+        .cs-field{margin-bottom:0.6rem;}
+        .cs-input,.cs-select,.cs-textarea{background:white;border:1.5px solid var(--border);color:var(--black);font-family:'Tajawal',sans-serif;font-size:0.88rem;padding:0.58rem 0.82rem;border-radius:5px;outline:none;width:100%;transition:border-color 0.2s;}
+        .cs-input:focus,.cs-select:focus,.cs-textarea:focus{border-color:var(--bob);}
+        .cs-textarea{resize:vertical;min-height:68px;line-height:1.5;}
+        .cs-select{cursor:pointer;appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23aaa' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:left 0.82rem center;}
+        .cs-row-2{display:grid;grid-template-columns:1fr 1fr;gap:0.5rem;}
+        .cs-small-label{font-size:0.68rem;color:#aaa;margin-bottom:0.2rem;display:block;}
 
-        .pd-price-block{margin-bottom:1.4rem;}
-        .pd-price{font-family:'Playfair Display',serif;font-size:2rem;font-weight:700;color:var(--bob);}
-        .pd-price-original{font-size:1rem;color:#bbb;text-decoration:line-through;margin-left:0.6rem;}
-        .pd-price-sub{font-size:0.78rem;color:#aaa;margin-top:0.2rem;display:block;}
+        .ship-badge{display:inline-flex;align-items:center;gap:0.3rem;font-size:0.73rem;font-weight:700;padding:0.28rem 0.65rem;border-radius:20px;margin:0.3rem 0 0.75rem;}
+        .sb-west{background:#edf5ee;color:#2a6b3a;}
+        .sb-jerusalem{background:#fdf4e7;color:#7a5020;}
+        .sb-inside{background:#fef2f2;color:#9b2929;}
 
-        .pd-sizes-label{font-size:0.72rem;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:#aaa;margin-bottom:0.6rem;display:block;}
-        .pd-sizes{display:flex;gap:0.6rem;flex-wrap:wrap;margin-bottom:1.4rem;}
-        .pd-size-btn{padding:0.5rem 1rem;border:1.5px solid var(--border);border-radius:5px;background:white;font-family:'Tajawal',sans-serif;font-size:0.85rem;color:var(--black);cursor:pointer;transition:all 0.2s;}
-        .pd-size-btn:hover{border-color:var(--bob);}
-        .pd-size-btn.active{border-color:var(--bob);background:var(--bob);color:white;font-weight:700;}
+        .addr-list{display:flex;flex-direction:column;gap:0.35rem;margin-bottom:0.6rem;}
+        .addr-opt{display:flex;align-items:flex-start;gap:0.55rem;padding:0.6rem 0.75rem;border:1.5px solid var(--border);border-radius:5px;cursor:pointer;background:white;transition:border-color 0.2s;}
+        .addr-opt.sel{border-color:var(--bob);background:rgba(69,40,41,0.03);}
+        .addr-radio{width:15px;height:15px;accent-color:var(--bob);margin-top:2px;flex-shrink:0;}
+        .addr-text{font-size:0.82rem;color:var(--black);line-height:1.5;}
+        .addr-lbl{font-size:0.67rem;color:#aaa;margin-bottom:0.1rem;}
 
-        .pd-bottle-info{display:flex;gap:1.5rem;margin-bottom:1.4rem;padding:0.9rem 1rem;background:var(--off);border-radius:6px;}
-        .pd-bi-item{display:flex;flex-direction:column;gap:2px;}
-        .pd-bi-label{font-size:0.68rem;color:#aaa;letter-spacing:0.06em;text-transform:uppercase;}
-        .pd-bi-val{font-size:0.9rem;font-weight:600;color:var(--black);}
+        .save-addr-row{display:flex;align-items:center;gap:0.5rem;margin-bottom:0.6rem;margin-top:0.2rem;}
+        .save-addr-row input{accent-color:var(--bob);width:14px;height:14px;}
+        .save-addr-row label{font-size:0.8rem;color:#555;cursor:pointer;}
 
-        .pd-guest-note{font-size:0.78rem;color:#b5620a;background:#fff7ed;border:1px solid #fde8c8;border-radius:5px;padding:0.5rem 0.85rem;margin-bottom:1rem;}
+        .guest-notice{background:#fff8f0;border:1px solid #fde8c8;border-radius:6px;padding:0.6rem 0.85rem;margin-bottom:1rem;font-size:0.77rem;color:#b5620a;}
 
-        .pd-actions{display:flex;gap:0.8rem;margin-bottom:1.4rem;flex-wrap:wrap;}
-        .pd-qty{display:flex;align-items:center;border:1.5px solid var(--border);border-radius:5px;overflow:hidden;}
-        .pd-qty-btn{background:none;border:none;width:38px;height:44px;cursor:pointer;font-size:1.1rem;color:var(--black);transition:background 0.2s;display:flex;align-items:center;justify-content:center;}
-        .pd-qty-btn:hover{background:var(--off);}
-        .pd-qty-num{width:44px;text-align:center;font-size:0.95rem;font-weight:600;color:var(--black);}
-        .pd-add-btn{flex:1;background:var(--bob);color:white;border:none;padding:0 1.5rem;height:44px;font-family:'Tajawal',sans-serif;font-size:0.95rem;font-weight:700;cursor:pointer;border-radius:5px;display:flex;align-items:center;justify-content:center;gap:0.5rem;transition:background 0.2s;min-width:160px;}
-        .pd-add-btn:hover:not(:disabled){background:var(--bob-l);}
-        .pd-add-btn.success{background:#2e7d5a;}
-        .pd-wishlist-btn{width:44px;height:44px;border:1.5px solid var(--border);border-radius:5px;background:white;display:flex;align-items:center;justify-content:center;cursor:pointer;color:#888;transition:all 0.2s;}
-        .pd-wishlist-btn:hover{border-color:#ccc;color:var(--black);}
+        .promo-row{display:flex;gap:0.45rem;margin-bottom:0.9rem;}
+        .promo-input{flex:1;background:white;border:1.5px solid var(--border);color:var(--black);font-family:'Tajawal',sans-serif;font-size:0.85rem;padding:0.55rem 0.8rem;border-radius:5px;outline:none;transition:border-color 0.2s;}
+        .promo-input:focus{border-color:var(--bob);}
+        .promo-btn{background:var(--black);color:white;border:none;padding:0.55rem 0.9rem;border-radius:5px;font-family:'Tajawal',sans-serif;font-size:0.82rem;font-weight:700;cursor:pointer;white-space:nowrap;}
+        .promo-btn:hover{background:#333;}
+        .promo-ok{font-size:0.77rem;color:var(--green);background:var(--green-bg);border:1px solid #86efac;padding:0.32rem 0.65rem;border-radius:4px;margin-bottom:0.8rem;}
 
-        .pd-meta{display:flex;gap:0.5rem;flex-wrap:wrap;margin-bottom:1.4rem;}
-        .pd-meta-badge{font-size:0.7rem;font-weight:700;padding:0.22rem 0.7rem;border-radius:20px;letter-spacing:0.04em;}
-        .mb-arabic{background:rgba(69,40,41,0.1);color:var(--bob);}
-        .mb-western{background:#eff4ff;color:#1e4db7;}
-        .mb-gender{background:#f5f5f5;color:#666;}
-        .mb-family{background:#f0fdf4;color:#2e7d5a;}
+        .divider{height:1px;background:var(--border);margin:0.85rem 0;}
+        .row{display:flex;justify-content:space-between;font-size:0.85rem;color:var(--gray);margin-bottom:0.45rem;}
+        .row.disc{color:var(--green);}
+        .row.total{color:var(--black);font-weight:700;font-size:0.98rem;}
 
-        .pd-desc-title{font-size:0.72rem;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:#aaa;margin-bottom:0.5rem;}
-        .pd-desc{font-size:0.92rem;color:#555;line-height:1.85;margin-bottom:1.4rem;}
+        .cs-error{font-size:0.79rem;color:#c0392b;background:#fef2f2;border:1px solid #fecaca;padding:0.48rem 0.72rem;border-radius:4px;margin-bottom:0.75rem;}
+        .place-btn{width:100%;background:var(--bob);color:white;border:none;padding:0.88rem;font-family:'Tajawal',sans-serif;font-size:0.98rem;font-weight:700;border-radius:6px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:0.5rem;transition:background 0.2s;margin-top:0.9rem;}
+        .place-btn:hover:not(:disabled){background:var(--bob-l);}
+        .place-btn:disabled{opacity:0.6;cursor:not-allowed;}
+        .cs-note{font-size:0.71rem;color:#aaa;text-align:center;margin-top:0.7rem;line-height:1.6;}
 
-        .pd-reviews{max-width:1400px;margin:0 auto;padding:0 2rem 4rem;}
-        .pd-reviews-title{font-family:'Playfair Display',serif;font-size:1.6rem;color:var(--black);font-weight:700;margin-bottom:2rem;display:flex;align-items:center;gap:0.8rem;}
-        .pd-reviews-title::after{content:'';flex:1;height:1px;background:var(--border);}
-        .pd-reviews-layout{display:grid;grid-template-columns:1fr 1fr;gap:3rem;}
-
-        .review-list{display:flex;flex-direction:column;gap:1.2rem;}
-        .review-item{background:var(--off);border-radius:8px;padding:1.2rem;}
-        .review-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:0.5rem;}
-        .review-author{font-weight:600;color:var(--black);font-size:0.9rem;}
-        .review-date{font-size:0.72rem;color:#aaa;}
-        .review-comment{font-size:0.88rem;color:#555;line-height:1.7;margin-top:0.4rem;}
-        .reviews-empty{text-align:center;padding:2rem;color:#aaa;font-size:0.9rem;}
-
-        .review-form-title{font-family:'Playfair Display',serif;font-size:1.1rem;color:var(--black);font-weight:600;margin-bottom:1.2rem;}
-        .rf-field{display:flex;flex-direction:column;gap:0.35rem;margin-bottom:1rem;}
-        .rf-label{font-size:0.72rem;font-weight:700;color:#aaa;letter-spacing:0.08em;text-transform:uppercase;}
-        .rf-textarea{background:white;border:1.5px solid var(--border);color:var(--black);font-family:'Tajawal',sans-serif;font-size:0.9rem;padding:0.7rem 0.9rem;border-radius:5px;outline:none;resize:vertical;min-height:100px;transition:border-color 0.2s;width:100%;box-sizing:border-box;}
-        .rf-textarea:focus{border-color:var(--bob);}
-        .rf-msg{font-size:0.8rem;padding:0.5rem 0.75rem;border-radius:4px;margin-bottom:0.75rem;}
-        .rf-msg.error{color:#c0392b;background:#fef2f2;border:1px solid #fecaca;}
-        .rf-msg.success{color:#2e7d5a;background:#f0fdf4;border:1px solid #bbf7d0;}
-        .rf-submit{background:var(--bob);color:white;border:none;padding:0.7rem 1.8rem;font-family:'Tajawal',sans-serif;font-size:0.9rem;font-weight:700;border-radius:5px;cursor:pointer;display:flex;align-items:center;gap:0.4rem;transition:background 0.2s;}
-        .rf-submit:hover:not(:disabled){background:var(--bob-l);}
-        .rf-submit:disabled{opacity:0.6;cursor:not-allowed;}
-        .rf-login-prompt{font-size:0.85rem;color:#aaa;padding:1rem;background:var(--off);border-radius:6px;text-align:center;}
-        .rf-login-prompt a{color:var(--bob);font-weight:700;text-decoration:none;}
+        .form-block{animation:fadeSlide 0.22s ease both;}
 
         @media(max-width:900px){
-          .pd-main{grid-template-columns:1fr;gap:2rem;}
-          .pd-gallery{position:static;}
-          .pd-reviews-layout{grid-template-columns:1fr;}
-          .pd-breadcrumb,.pd-main,.pd-reviews{padding-right:1rem;padding-left:1rem;}
-          .pd-back-btn{margin:1rem 1rem 0.5rem;}
+          .cart-layout{grid-template-columns:1fr;padding:1rem;}
+          .cart-summary{position:static;}
+        }
+        @media(max-width:480px){
+          .cart-header{padding:1rem 1rem 0;}
+          .cart-title{font-size:1.35rem;}
+          .cart-sub{font-size:0.78rem;}
+          .cart-item{gap:0.65rem;padding:0.8rem 0;}
+          .ci-img-wrap{width:60px;height:60px;flex-shrink:0;border-radius:5px;}
+          .ci-brand{font-size:0.58rem;}
+          .ci-name{font-size:0.84rem;}
+          .ci-section{font-size:0.68rem;}
+          .ci-price{font-size:0.88rem;}
+          .ci-qty-btn{width:24px;height:24px;font-size:0.9rem;}
+          .ci-qty-num{width:24px;font-size:0.78rem;}
+          .cart-summary{padding:1rem;}
+          .cs-title{font-size:0.95rem;margin-bottom:1rem;}
+          .section-label{font-size:0.6rem;}
+          .cs-input,.cs-select,.cs-textarea{font-size:0.82rem;padding:0.5rem 0.7rem;}
+          .cs-row-2{grid-template-columns:1fr;}
+          .data-pill{font-size:0.82rem;padding:0.5rem 0.7rem;}
+          .addr-opt{padding:0.45rem 0.6rem;}
+          .addr-text{font-size:0.76rem;}
+          .promo-input{font-size:0.8rem;padding:0.48rem 0.65rem;}
+          .promo-btn{font-size:0.78rem;padding:0.48rem 0.75rem;}
+          .row{font-size:0.8rem;}
+          .row.total{font-size:0.9rem;}
+          .place-btn{font-size:0.88rem;padding:0.75rem;}
+          .cs-note{font-size:0.67rem;}
+          .guest-notice{font-size:0.73rem;padding:0.5rem 0.7rem;}
+          .ship-badge{font-size:0.68rem;}
+          .edit-btn{font-size:0.68rem;padding:0.15rem 0.45rem;}
+          .divider{margin:0.65rem 0;}
         }
       `}</style>
 
-      <button className="pd-back-btn" onClick={() => navigate("/shop")}>
-        <ArrowRight size={14} /> العودة للمتجر
-      </button>
-
-      <nav className="pd-breadcrumb">
-        <a onClick={() => navigate("/")}>الرئيسية</a>
-        <span>/</span>
-        <a onClick={() => navigate("/shop")}>المتجر</a>
-        <span>/</span>
-        <span style={{ color: "#452829" }}>{perfume.name}</span>
-      </nav>
-
-      <div className="pd-main">
-        {/* Gallery */}
-        <div className="pd-gallery">
-          <div className="pd-main-img-wrap">
-            {mainImg ? (
-              <img loading="lazy" src={mainImg} alt={perfume.name} className="pd-main-img" />
-            ) : (
-              <div className="pd-img-ph"><Package size={64} strokeWidth={0.8} /></div>
-            )}
-            {discountPct > 0 && (
-              <span className="pd-discount-badge">-{discountPct}%</span>
-            )}
-          </div>
-          {images.length > 1 && (
-            <div className="pd-thumbs">
-              {images.map((img, i) => (
-                <div key={i} className={`pd-thumb ${selectedImg === i ? "active" : ""}`} onClick={() => setSelectedImg(i)}>
-                  <img loading="lazy" src={img.url} alt="" />
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Info */}
-        <div className="pd-info">
-          <span className="pd-brand">{perfume.brand}</span>
-          <h1 className="pd-name">{perfume.name}</h1>
-
-          <div className="pd-rating-row">
-            <StarRating value={Math.round(perfume.rating ?? 0)} readonly />
-            <span className="pd-rating-count">({perfume.reviewCount ?? 0} تقييم)</span>
-          </div>
-
-          {isBoth && (
-            <div className="pd-section-tabs">
-              <button className={`pd-section-tab ${activeSection === "full" ? "active" : ""}`} onClick={() => switchSection("full")}>
-                <Package size={15} /> قارورة كاملة
-              </button>
-              <button className={`pd-section-tab ${activeSection === "taqseem" ? "active" : ""}`} onClick={() => switchSection("taqseem")}>
-                <Layers size={15} /> تقسيمة
-              </button>
-            </div>
-          )}
-
-          {isBoth && (
-            <div className="pd-crosslink" onClick={() => switchSection(activeSection === "full" ? "taqseem" : "full")}>
-              <ArrowLeftRight size={16} color="#452829" />
-              <span className="pd-crosslink-text">
-                {activeSection === "full"
-                  ? "هذا العطر متوفر أيضاً كتقسيمة — انقر للتبديل"
-                  : "هذا العطر متوفر أيضاً كقارورة كاملة — انقر للتبديل"}
-              </span>
-              <ChevronLeft size={15} />
-            </div>
-          )}
-
-          {/* Price */}
-          <div className="pd-price-block">
-            <div style={{ display: "flex", alignItems: "baseline", gap: "0.4rem", flexWrap: "wrap" }}>
-              {originalPrice != null && (
-                <span className="pd-price-original">₪{originalPrice}</span>
-              )}
-              <span className="pd-price">
-                {displayPrice != null ? `₪${displayPrice}` : "—"}
-              </span>
-            </div>
-            {activeSection === "full" && perfume.fullBottle?.size_ml && (
-              <span className="pd-price-sub">قارورة {perfume.fullBottle.size_ml} مل</span>
-            )}
-            {activeSection === "taqseem" && perfume.taqseem?.sourceBottle_ml && (
-              <span className="pd-price-sub">تقسيمات من قارورة {perfume.taqseem.sourceBottle_ml} مل</span>
-            )}
-          </div>
-
-          {activeSection === "taqseem" && perfume.taqseem?.sizes?.length > 0 && (
-            <>
-              <span className="pd-sizes-label">اختر الحجم</span>
-              <div className="pd-sizes">
-                {perfume.taqseem.sizes.map((s) => (
-                  <button
-                    key={s.ml}
-                    className={`pd-size-btn ${selectedSize?.ml === s.ml ? "active" : ""}`}
-                    onClick={() => setSelectedSize(s)}
-                  >
-                    {s.ml} مل — ₪{Math.round(s.price)}
-                  </button>
-                ))}
-              </div>
-            </>
-          )}
-
-          {activeSection === "full" && perfume.fullBottle && (perfume.fullBottle.size_ml || discountPct > 0) && (
-            <div className="pd-bottle-info">
-              {perfume.fullBottle.size_ml && (
-                <div className="pd-bi-item">
-                  <span className="pd-bi-label">الحجم</span>
-                  <span className="pd-bi-val">{perfume.fullBottle.size_ml} مل</span>
-                </div>
-              )}
-              {discountPct > 0 && (
-                <div className="pd-bi-item">
-                  <span className="pd-bi-label">الخصم</span>
-                  <span className="pd-bi-val" style={{ color: "#b5620a" }}>{discountPct}%</span>
-                </div>
-              )}
-            </div>
-          )}
-
-          <div className="pd-guest-note">
-            🛍 لا تحتاج لتسجيل دخول — أضف للسلة وأدخل بياناتك عند الطلب
-          </div>
-
-          <div className="pd-actions">
-            <div className="pd-qty">
-              <button className="pd-qty-btn" onClick={() => setQty((q) => Math.max(1, q - 1))}>−</button>
-              <span className="pd-qty-num">{qty}</span>
-              <button className="pd-qty-btn" onClick={() => setQty((q) => q + 1)}>+</button>
-            </div>
-            <button className={`pd-add-btn ${cartMsg ? "success" : ""}`} onClick={handleAddToCart}>
-              {cartMsg ? <CheckCircle size={16} /> : <ShoppingBag size={16} />}
-              {cartMsg || "أضف للسلة"}
-            </button>
-            {cartMsg && (
-              <button className="pd-add-btn" style={{ background: "#1a1a1a", minWidth: "auto", padding: "0 1rem" }} onClick={() => navigate("/cart")}>
-                عرض السلة
-              </button>
-            )}
-            {/* Wishlist only — share button removed */}
-            <button
-              className="pd-wishlist-btn"
-              title={inWishlist ? "إزالة من المفضلة" : "إضافة للمفضلة"}
-              onClick={handleWishlist}
-              disabled={loadingWishlist}
-              style={{ color: inWishlist ? "#452829" : undefined }}
-            >
-              {loadingWishlist
-                ? <Loader2 size={15} style={{ animation: "spin 1s linear infinite" }} />
-                : <Heart size={17} fill={inWishlist ? "#452829" : "none"} />
-              }
-            </button>
-            {wishlistMsg && (
-              <span style={{ fontSize: "0.78rem", color: inWishlist ? "#452829" : "#888", alignSelf: "center", whiteSpace: "nowrap" }}>
-                {wishlistMsg}
-              </span>
-            )}
-          </div>
-
-          <div className="pd-meta">
-            <span className={`pd-meta-badge ${perfume.perfumeType === "arabic" ? "mb-arabic" : "mb-western"}`}>
-              {perfume.perfumeType === "arabic" ? "عربي" : "أجنبي"}
-            </span>
-            <span className="pd-meta-badge mb-gender">
-              {perfume.gender === "male" ? "رجالي" : perfume.gender === "female" ? "نسائي" : "مشترك"}
-            </span>
-{(() => {
-  const FAMILY_AR = {
-    // قديم
-    fresh:    "منعش",
-    citrus:   "الحمضيات",
-    aquatic:  "المائيات",
-    floral:   "الأزهار",
-    oriental: "شرقي",
-    Spicy:    "التوابل",
-    gourmand: "الغورماند",
-    woody:    "الأخشاب",
-    chypre:   "شيبر",
-    fougere:  "السرخسيات",
-    oud:      "العود",
-    Musk:     "المسك",
-    Fruity:   "الفواكه",
-    other:    "أخرى",
-    // جديد
-    green:       "الروائح الخضراء",
-    fruity:      "الفواكه",
-    ambery:      "العنبرية",
-    spicy:       "التوابل",
-    mossy_woods: "الأخشاب الطحلبية",
-    leather:     "الجلود",
-    taif_rose:   "الورد الطائفي",
-  };
-
-  const families = Array.isArray(perfume.fragranceFamily)
-    ? perfume.fragranceFamily
-    : perfume.fragranceFamily
-    ? [perfume.fragranceFamily]
-    : [];
-
-  return families.map((f) => (
-    <span key={f} className="pd-meta-badge mb-family">
-      {FAMILY_AR[f] ?? f}
-    </span>
-  ));
-})()}
-            <span className="pd-meta-badge" style={{ background: "#f5f5f5", color: "#888" }}>
-              {availLabel[perfume.availability]}
-            </span>
-          </div>
-
-          <div className="pd-desc-title">الوصف</div>
-          <p className="pd-desc">{perfume.description}</p>
-        </div>
+      {/* ── Page header ── */}
+      <div className="cart-header">
+        <h1 className="cart-title">سلة التسوق</h1>
+        <p className="cart-sub">{cart.length} عنصر</p>
       </div>
 
-      {/* Reviews */}
-      <div className="pd-reviews">
-        <h2 className="pd-reviews-title">التقييمات والمراجعات</h2>
-        <div className="pd-reviews-layout">
+      {loading ? (
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "4rem",
+            color: "#452829",
+          }}
+        >
+          <Loader2 size={28} style={{ animation: "spin 1s linear infinite" }} />
+        </div>
+      ) : cart.length === 0 ? (
+        <div className="cart-empty">
+          <ShoppingBag size={52} strokeWidth={1} color="#e8e2dc" />
+          <h2>السلة فارغة</h2>
+          <p>لم تضف أي منتجات بعد</p>
+          <button
+            onClick={() => navigate("/shop")}
+            style={{
+              background: "#452829",
+              color: "white",
+              border: "none",
+              padding: "0.72rem 1.6rem",
+              borderRadius: 5,
+              fontFamily: "Tajawal,sans-serif",
+              fontWeight: 700,
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              gap: "0.4rem",
+              marginTop: "0.4rem",
+            }}
+          >
+            <ArrowLeft size={15} /> تسوق الآن
+          </button>
+        </div>
+      ) : (
+        <div className="cart-layout">
+          {/* ────────── CART ITEMS ────────── */}
           <div>
-            {perfume.reviews?.filter((r) => r.status === "approved").length > 0 ? (
-              <div className="review-list">
-                {perfume.reviews
-                  .filter((r) => r.status === "approved")
-                  .map((r, i) => (
-                    <div key={i} className="review-item">
-                      <div className="review-header">
-                        <span className="review-author">{r.name}</span>
-                        <span className="review-date">{new Date(r.createdAt).toLocaleDateString("ar-EG")}</span>
+            {cart.map((item, idx) => {
+              const p = item.perfume;
+              const img =
+                p?.images?.find((i) => i.isMain)?.url ?? p?.images?.[0]?.url;
+              const price = getItemPrice(item);
+              const key = isLoggedIn
+                ? (item._id ?? idx)
+                : (item._guestId ?? idx);
+
+              return (
+                <div key={String(key)} className="cart-item">
+                  <div className="ci-img-wrap">
+                    {img ? (
+                      <img
+                        loading="lazy"
+                        src={img}
+                        alt={p?.name ?? item.name}
+                        className="ci-img"
+                      />
+                    ) : (
+                      <div className="ci-img-ph">
+                        <Package size={26} />
                       </div>
-                      <StarRating value={r.rating} readonly />
-                      <p className="review-comment">{r.comment}</p>
+                    )}
+                  </div>
+                  <div className="ci-body">
+                    <span className="ci-brand">{p?.brand ?? item.brand}</span>
+                    <span className="ci-name">{p?.name ?? item.name}</span>
+                    <span className="ci-section">
+                      {item.section === "full"
+                        ? "قارورة كاملة"
+                        : `تقسيمة · ${item.size ?? ""}مل`}
+                    </span>
+                  </div>
+                  <div className="ci-right">
+                    <span className="ci-price">
+                      {price > 0
+                        ? `₪${Math.round(price * item.quantity)}`
+                        : "—"}
+                    </span>
+                    <div className="ci-qty">
+                      <button
+                        className="ci-qty-btn"
+                        onClick={() =>
+                          isLoggedIn
+                            ? updateQtyAuth(item._id, item.quantity - 1)
+                            : updateQtyGuest(item._guestId, -1)
+                        }
+                      >
+                        <Minus size={12} />
+                      </button>
+                      <span className="ci-qty-num">{item.quantity}</span>
+                      <button
+                        className="ci-qty-btn"
+                        onClick={() =>
+                          isLoggedIn
+                            ? updateQtyAuth(item._id, item.quantity + 1)
+                            : updateQtyGuest(item._guestId, 1)
+                        }
+                      >
+                        <Plus size={12} />
+                      </button>
                     </div>
-                  ))}
-              </div>
-            ) : (
-              <div className="reviews-empty">
-                <Star size={32} strokeWidth={1} color="#ccc" />
-                <p style={{ marginTop: "0.75rem" }}>لا توجد تقييمات بعد. كن أول من يقيّم!</p>
-              </div>
-            )}
+                    <button
+                      className="ci-remove"
+                      onClick={() =>
+                        isLoggedIn
+                          ? removeAuth(item._id)
+                          : removeGuest(item._guestId)
+                      }
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
           </div>
 
-          <div>
-            <h3 className="review-form-title">أضف تقييمك</h3>
-            {getToken() ? (
-              <form onSubmit={handleReview}>
-                <div className="rf-field">
-                  <span className="rf-label">التقييم</span>
-                  <StarRating value={reviewRating} onChange={setReviewRating} />
+          {/* ────────── CHECKOUT SUMMARY ────────── */}
+          <div className="cart-summary">
+            <div className="cs-title">تفاصيل الطلب</div>
+
+            {/* ════ GUEST CHECKOUT ════ */}
+            {!isLoggedIn && (
+              <>
+                <div className="guest-notice">
+                  🛍 لا تحتاج لتسجيل دخول — أدخل بياناتك أدناه
                 </div>
-                <div className="rf-field">
-                  <span className="rf-label">تعليقك</span>
-                  <textarea
-                    className="rf-textarea"
-                    placeholder="شاركنا رأيك بهذا العطر..."
-                    value={reviewComment}
-                    onChange={(e) => setReviewComment(e.target.value)}
+
+                <div className="section-label">
+                  <User size={12} /> بياناتك
+                </div>
+                <div className="cs-field" style={{ marginTop: "0.4rem" }}>
+                  <input
+                    className="cs-input"
+                    placeholder="الاسم الكامل *"
+                    value={guestName}
+                    onChange={(e) => setGuestName(e.target.value)}
                   />
                 </div>
-                {reviewMsg.text && (
-                  <div className={`rf-msg ${reviewMsg.ok ? "success" : "error"}`}>
-                    {reviewMsg.text}
+                <div className="cs-field">
+                  <input
+                    className="cs-input"
+                    placeholder="رقم الهاتف *"
+                    value={guestPhone}
+                    onChange={(e) => setGuestPhone(e.target.value)}
+                    dir="ltr"
+                  />
+                </div>
+                <div className="divider" />
+
+                <div className="section-label">
+                  <MapPin size={12} /> عنوان التوصيل
+                </div>
+                <div className="cs-field" style={{ marginTop: "0.4rem" }}>
+                  <select
+                    className="cs-select"
+                    value={guestRegion}
+                    onChange={(e) => setGuestRegion(e.target.value)}
+                  >
+                    <option value="">اختر المنطقة *</option>
+                    {REGIONS.map((r) => (
+                      <option key={r.value} value={r.value}>
+                        {r.label} — توصيل ₪{r.shipping}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                {guestRegion && (
+                  <div
+                    className={`ship-badge ${guestRegion === "west_bank" ? "sb-west" : guestRegion === "jerusalem" ? "sb-jerusalem" : "sb-inside"}`}
+                  >
+                    <MapPin size={11} /> {activeRegion?.label} · رسوم التوصيل ₪
+                    {shippingFee}
                   </div>
                 )}
-                <button type="submit" className="rf-submit" disabled={submitting}>
-                  {submitting
-                    ? <Loader2 size={15} style={{ animation: "spin 1s linear infinite" }} />
-                    : <Send size={15} />
-                  }
-                  {submitting ? "جاري الإرسال..." : "إرسال التقييم"}
-                </button>
-              </form>
-            ) : (
-              <div className="rf-login-prompt">
-                يجب <a href="/auth">تسجيل الدخول</a> لإضافة تقييم
+                {canApplySalfitRate(guestGovernorate, guestCity) && (
+                  <div className="salfit-badge">
+                    🎉 سلفيت · توصيل مجاني تقريباً — ₪5 فقط!
+                  </div>
+                )}
+                <div className="cs-field">
+                  <select
+                    className="cs-select"
+                    value={guestGovernorate}
+                    onChange={(e) => setGuestGovernorate(e.target.value)}
+                  >
+                    <option value="">اختر المحافظة *</option>
+                    {WEST_BANK_GOVERNORATES.map((g) => (
+                      <option key={g} value={g}>
+                        {g}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="cs-field">
+                  <input
+                    className="cs-input"
+                    placeholder="المدينة / البلدة *"
+                    value={guestCity}
+                    onChange={(e) => setGuestCity(e.target.value)}
+                  />
+                </div>
+                <div className="cs-field">
+                  <input
+                    className="cs-input"
+                    placeholder="الشارع *"
+                    value={guestStreet}
+                    onChange={(e) => setGuestStreet(e.target.value)}
+                  />
+                </div>
+                <div className="divider" />
+
+                <div className="section-label">
+                  <StickyNote size={12} /> ملاحظات الطلب
+                </div>
+                <div className="cs-field" style={{ marginTop: "0.4rem" }}>
+                  <textarea
+                    className="cs-textarea"
+                    placeholder="ملاحظات للتوصيل أو الطلب (اختياري)"
+                    value={guestNotes}
+                    onChange={(e) => setGuestNotes(e.target.value)}
+                  />
+                  <div className="delivery-alert">
+                    قد تستغرق مدة التوصيل من 2 إلى 5 أيام عمل حسب المنطقة والضغط
+                    على الطلبات. إذا كان الطلب مستعجلاً، يرجى كتابة ملاحظة
+                    وسنتواصل معك بأقرب وقت ممكن.
+                  </div>
+                </div>
+              </>
+            )}
+
+            {/* ════ AUTH CHECKOUT ════ */}
+            {isLoggedIn && (
+              <>
+                {/* ── Phone ── */}
+                <div className="section-hd">
+                  <div className="section-label">
+                    <Phone size={12} /> رقم الهاتف
+                  </div>
+                  {phone && (
+                    <button
+                      className={`edit-btn ${editingPhone ? "active" : ""}`}
+                      onClick={() => setEditingPhone(!editingPhone)}
+                    >
+                      {editingPhone ? (
+                        <>
+                          <X size={11} /> إلغاء
+                        </>
+                      ) : (
+                        <>
+                          <Edit3 size={11} /> تعديل
+                        </>
+                      )}
+                    </button>
+                  )}
+                </div>
+
+                {!editingPhone && phone ? (
+                  <div className="data-pill">
+                    <Phone size={14} className="data-pill-icon" />
+                    <span className="data-pill-main" dir="ltr">
+                      {phone}
+                    </span>
+                  </div>
+                ) : (
+                  <div className="cs-field form-block">
+                    <input
+                      className="cs-input"
+                      type="tel"
+                      placeholder="05X XXX XXXX *"
+                      value={phone}
+                      onChange={(e) => setPhone(e.target.value)}
+                      dir="ltr"
+                    />
+                  </div>
+                )}
+
+                <div className="divider" />
+
+                {/* ── Region ── */}
+                <div
+                  className="section-label"
+                  style={{ marginBottom: "0.45rem" }}
+                >
+                  <MapPin size={12} /> المنطقة
+                </div>
+                <div className="cs-field">
+                  <select
+                    className="cs-select"
+                    value={region}
+                    onChange={(e) => setRegion(e.target.value)}
+                  >
+                    <option value="">اختر المنطقة *</option>
+                    {REGIONS.map((r) => (
+                      <option key={r.value} value={r.value}>
+                        {r.label} — توصيل ₪{r.shipping}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                {region && (
+                  <div
+                    className={`ship-badge ${region === "west_bank" ? "sb-west" : region === "jerusalem" ? "sb-jerusalem" : "sb-inside"}`}
+                  >
+                    <MapPin size={11} /> {activeRegion?.label} · رسوم التوصيل ₪
+                    {shippingFee}
+                  </div>
+                )}
+                {canApplySalfitRate(
+                  editingAddr || !user?.addresses?.length
+                    ? governorate
+                    : (selectedAddr?.governorate ?? governorate),
+                  city,
+                ) && (
+                  <div className="salfit-badge">
+                    🎉 سلفيت · توصيل مجاني تقريباً — ₪5 فقط!
+                  </div>
+                )}
+
+                {/* ── Address ── */}
+                <div className="section-hd">
+                  <div className="section-label">
+                    <MapPin size={12} /> عنوان التوصيل
+                  </div>
+                  {user?.addresses?.length > 0 && (
+                    <button
+                      className={`edit-btn ${editingAddr ? "active" : ""}`}
+                      onClick={() => {
+                        setEditingAddr(!editingAddr);
+                        if (!editingAddr) setSelectedAddrId(null);
+                      }}
+                    >
+                      {editingAddr ? (
+                        <>
+                          <X size={11} /> إلغاء
+                        </>
+                      ) : (
+                        <>
+                          <Plus size={11} /> عنوان جديد
+                        </>
+                      )}
+                    </button>
+                  )}
+                </div>
+
+                {user?.addresses?.length > 0 && !editingAddr && (
+                  <div className="addr-list">
+                    {user.addresses.map((a) => (
+                      <div
+                        key={a._id}
+                        className={`addr-opt ${selectedAddrId === a._id ? "sel" : ""}`}
+                        onClick={() => setSelectedAddrId(a._id)}
+                      >
+                        <input
+                          type="radio"
+                          className="addr-radio"
+                          readOnly
+                          checked={selectedAddrId === a._id}
+                        />
+                        <div>
+                          <div className="addr-lbl">
+                            {a.label}
+                            {a.isDefault ? " · الافتراضي" : ""}
+                          </div>
+                          <div className="addr-text">
+                            {[a.governorate, a.city, a.area, a.street]
+                              .filter(Boolean)
+                              .join("، ")}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {(editingAddr || !user?.addresses?.length) && (
+                  <div className="form-block">
+                    <div className="cs-field">
+                      <span className="cs-small-label">المحافظة *</span>
+                      <select
+                        className="cs-select"
+                        value={governorate}
+                        onChange={(e) => setGovernorate(e.target.value)}
+                      >
+                        <option value="">اختر المحافظة *</option>
+                        {WEST_BANK_GOVERNORATES.map((g) => (
+                          <option key={g} value={g}>
+                            {g}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div
+                      className="cs-row-2"
+                      style={{ marginBottom: "0.5rem" }}
+                    >
+                      <div>
+                        <span className="cs-small-label">المدينة *</span>
+                        <input
+                          className="cs-input"
+                          placeholder="مثل: نابلس"
+                          value={city}
+                          onChange={(e) => setCity(e.target.value)}
+                        />
+                      </div>
+                      <div>
+                        <span className="cs-small-label">الحي / المنطقة *</span>
+                        <input
+                          className="cs-input"
+                          placeholder="مثل: المنطقة الشمالية"
+                          value={area}
+                          onChange={(e) => setArea(e.target.value)}
+                        />
+                      </div>
+                    </div>
+                    <div className="cs-field">
+                      <span className="cs-small-label">الشارع *</span>
+                      <input
+                        className="cs-input"
+                        placeholder="اسم أو رقم الشارع"
+                        value={street}
+                        onChange={(e) => setStreet(e.target.value)}
+                      />
+                    </div>
+                    <div className="save-addr-row">
+                      <input
+                        type="checkbox"
+                        id="saveAddr"
+                        checked={saveAddr}
+                        onChange={(e) => setSaveAddr(e.target.checked)}
+                      />
+                      <label htmlFor="saveAddr">
+                        حفظ هذا العنوان في ملفي الشخصي
+                      </label>
+                    </div>
+                    {saveAddr && (
+                      <div className="cs-field form-block">
+                        <span className="cs-small-label">اسم العنوان</span>
+                        <input
+                          className="cs-input"
+                          placeholder="مثل: المنزل، العمل..."
+                          value={addrLabel}
+                          onChange={(e) => setAddrLabel(e.target.value)}
+                        />
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                <div className="divider" />
+
+                {/* ── Order notes ── */}
+                <div
+                  className="section-label"
+                  style={{ marginBottom: "0.45rem" }}
+                >
+                  <StickyNote size={12} /> ملاحظات الطلب
+                </div>
+                <div className="cs-field">
+                  <textarea
+                    className="cs-textarea"
+                    placeholder="ملاحظات للتوصيل أو أي تفاصيل إضافية (اختياري)"
+                    value={orderNotes}
+                    onChange={(e) => setOrderNotes(e.target.value)}
+                  />
+                  <div className="delivery-alert">
+                    قد تستغرق مدة التوصيل من 2 إلى 5 أيام عمل حسب المنطقة والضغط
+                    على الطلبات. إذا كان الطلب مستعجلاً، يرجى كتابة ملاحظة
+                    وسنتواصل معك بأقرب وقت ممكن.
+                  </div>
+                </div>
+              </>
+            )}
+
+            <div className="divider" />
+
+            {/* ── Price breakdown ── */}
+            <div className="row">
+              <span>المجموع الفرعي</span>
+              <span>₪{Math.round(itemsPrice)}</span>
+            </div>
+            <div className="row">
+              <span>رسوم التوصيل</span>
+              <span>
+                {shippingFee != null ? `₪${shippingFee}` : "اختر المنطقة"}
+              </span>
+            </div>
+            {promoApplied && (
+              <div className="row disc">
+                <span>خصم الكود</span>
+                <span>-₪{discountAmt}</span>
               </div>
             )}
+            <div className="divider" />
+            <div className="row total">
+              <span>الإجمالي</span>
+              <span>
+                {totalPrice != null ? `₪${Math.round(totalPrice)}` : "—"}
+              </span>
+            </div>
+
+            {error && <div className="cs-error">⚠ {error}</div>}
+
+            <button
+              className="place-btn"
+              onClick={isLoggedIn ? placeOrderAuth : placeOrderGuest}
+              disabled={placing || totalPrice == null}
+            >
+              {placing ? (
+                <Loader2
+                  size={16}
+                  style={{ animation: "spin 1s linear infinite" }}
+                />
+              ) : (
+                <ShoppingBag size={16} />
+              )}
+              {placing ? "جاري التأكيد..." : "تأكيد الطلب"}
+            </button>
+
+            <p className="cs-note">
+              الدفع عند الاستلام · شحن خلال 2-5 أيام عمل
+            </p>
           </div>
         </div>
-      </div>
+      )}
     </>
   );
 }
