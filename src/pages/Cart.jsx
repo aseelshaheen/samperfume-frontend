@@ -72,11 +72,33 @@ const REGIONS = [
   { label: "الداخل المحتل (48)", value: "inside_48", shipping: 75 },
 ];
 
-/* ── Salfit detection ───────────────────────────────────────────────────── */
-const isSalfit = (cityVal) => {
-  if (!cityVal) return false;
-  return /\b(salfit|salfeet|سلفيت)\b/i.test(cityVal.trim());
+/* ── Governorates (West Bank) ───────────────────────────────────────────── */
+const WEST_BANK_GOVERNORATES = [
+  "سلفيت",
+  "نابلس",
+  "رام الله والبيرة",
+  "جنين",
+  "طولكرم",
+  "قلقيلية",
+  "أريحا",
+  "الخليل",
+  "بيت لحم",
+  "طوباس",
+];
+
+/* ── Salfit detection (exact match, governorate OR town) ─────────────────
+   The reduced ₪5 rate should only apply when BOTH the governorate AND the
+   specific city/town are exactly "Salfit" — not just when the town name
+   loosely contains the word (e.g. Biddya, Kafr ad-Dik, etc. must NOT match).
+─────────────────────────────────────────────────────────────────────────── */
+const SALFIT_ALIASES = ["salfit", "salfeet", "سلفيت"];
+const isExactSalfit = (val) => {
+  if (!val) return false;
+  return SALFIT_ALIASES.includes(val.trim().toLowerCase());
 };
+
+const canApplySalfitRate = (governorateVal, cityVal) =>
+  isExactSalfit(governorateVal) && isExactSalfit(cityVal);
 
 /* ════════════════════════════════════════════════════════════════════════════
    MAIN COMPONENT
@@ -93,6 +115,7 @@ export default function Cart() {
   const [guestName, setGuestName] = useState("");
   const [guestPhone, setGuestPhone] = useState("");
   const [guestRegion, setGuestRegion] = useState("");
+  const [guestGovernorate, setGuestGovernorate] = useState("");
   const [guestCity, setGuestCity] = useState("");
   const [guestStreet, setGuestStreet] = useState("");
   const [guestNotes, setGuestNotes] = useState("");
@@ -101,6 +124,7 @@ export default function Cart() {
   const [phone, setPhone] = useState("");
   const [region, setRegion] = useState("");
   const [selectedAddrId, setSelectedAddrId] = useState(null);
+  const [governorate, setGovernorate] = useState("");
   const [city, setCity] = useState("");
   const [area, setArea] = useState("");
   const [street, setStreet] = useState("");
@@ -227,9 +251,15 @@ export default function Cart() {
       ? user?.addresses?.find((a) => a._id === selectedAddrId)?.city ?? city
       : city
     : guestCity;
+  const governorateForShipping = isLoggedIn
+    ? selectedAddrId && !editingAddr
+      ? (user?.addresses?.find((a) => a._id === selectedAddrId)
+          ?.governorate ?? governorate)
+      : governorate
+    : guestGovernorate;
   const shippingFee =
     activeRegion != null
-      ? isSalfit(cityForShipping)
+      ? canApplySalfitRate(governorateForShipping, cityForShipping)
         ? 5
         : activeRegion.shipping
       : null;
@@ -303,6 +333,10 @@ export default function Cart() {
       setError("يرجى اختيار المنطقة");
       return;
     }
+    if (!guestGovernorate) {
+      setError("يرجى اختيار المحافظة");
+      return;
+    }
     if (!guestCity.trim()) {
       setError("يرجى إدخال المدينة / البلدة");
       return;
@@ -319,7 +353,8 @@ export default function Cart() {
         body: JSON.stringify({
           guestName,
           guestPhone,
-          guestCity: `${activeRegion?.label} - ${guestCity}`,
+          guestGovernorate,
+          guestCity: `${activeRegion?.label} - ${guestGovernorate} - ${guestCity}`,
           guestStreet,
           notes: guestNotes,
           items: cart.map((item) => ({
@@ -369,12 +404,17 @@ export default function Cart() {
     let shippingAddress;
     if (selectedAddr && !editingAddr) {
       shippingAddress = {
+        governorate: selectedAddr.governorate ?? "",
         city: `${activeRegion?.label} - ${selectedAddr.city}`,
         area: selectedAddr.area ?? "",
         street: selectedAddr.street ?? "",
         notes: orderNotes,
       };
     } else {
+      if (!governorate) {
+        setError("يرجى اختيار المحافظة");
+        return;
+      }
       if (!city.trim()) {
         setError("يرجى إدخال المدينة");
         return;
@@ -388,6 +428,7 @@ export default function Cart() {
         return;
       }
       shippingAddress = {
+        governorate,
         city: `${activeRegion?.label} - ${city}`,
         area,
         street,
@@ -889,11 +930,25 @@ export default function Cart() {
                     {shippingFee}
                   </div>
                 )}
-                {isSalfit(guestCity) && guestRegion && (
+                {canApplySalfitRate(guestGovernorate, guestCity) && (
                   <div className="salfit-badge">
-                     سلفيت · توصيل مجاني تقريباً — ₪5 فقط!
+                    🎉 سلفيت · توصيل مجاني تقريباً — ₪5 فقط!
                   </div>
                 )}
+                <div className="cs-field">
+                  <select
+                    className="cs-select"
+                    value={guestGovernorate}
+                    onChange={(e) => setGuestGovernorate(e.target.value)}
+                  >
+                    <option value="">اختر المحافظة *</option>
+                    {WEST_BANK_GOVERNORATES.map((g) => (
+                      <option key={g} value={g}>
+                        {g}
+                      </option>
+                    ))}
+                  </select>
+                </div>
                 <div className="cs-field">
                   <input
                     className="cs-input"
@@ -1008,7 +1063,12 @@ export default function Cart() {
                     {shippingFee}
                   </div>
                 )}
-                {isSalfit(city) && region && (
+                {canApplySalfitRate(
+                  editingAddr || !user?.addresses?.length
+                    ? governorate
+                    : (selectedAddr?.governorate ?? governorate),
+                  city,
+                ) && (
                   <div className="salfit-badge">
                     🎉 سلفيت · توصيل مجاني تقريباً — ₪5 فقط!
                   </div>
@@ -1060,7 +1120,7 @@ export default function Cart() {
                             {a.isDefault ? " · الافتراضي" : ""}
                           </div>
                           <div className="addr-text">
-                            {[a.city, a.area, a.street]
+                            {[a.governorate, a.city, a.area, a.street]
                               .filter(Boolean)
                               .join("، ")}
                           </div>
@@ -1072,6 +1132,21 @@ export default function Cart() {
 
                 {(editingAddr || !user?.addresses?.length) && (
                   <div className="form-block">
+                    <div className="cs-field">
+                      <span className="cs-small-label">المحافظة *</span>
+                      <select
+                        className="cs-select"
+                        value={governorate}
+                        onChange={(e) => setGovernorate(e.target.value)}
+                      >
+                        <option value="">اختر المحافظة *</option>
+                        {WEST_BANK_GOVERNORATES.map((g) => (
+                          <option key={g} value={g}>
+                            {g}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
                     <div
                       className="cs-row-2"
                       style={{ marginBottom: "0.5rem" }}
