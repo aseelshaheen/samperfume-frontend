@@ -100,6 +100,138 @@ const isExactSalfit = (val) => {
 const canApplySalfitRate = (governorateVal, cityVal) =>
   isExactSalfit(governorateVal) && isExactSalfit(cityVal);
 
+/* ── Cities / towns per West Bank governorate ────────────────────────────── */
+const CITIES_BY_GOVERNORATE = {
+  "سلفيت": [
+    "سلفيت", "بديا", "كفر الديك", "دير استيا", "بروقين", "كفل حارس",
+    "مسحة", "زيتا جماعين", "اسكاكا", "مردا", "رافات", "قراوة بني حسان",
+    "الزاوية", "حارس", "ياسوف", "فرخة", "سرطة",
+  ],
+  "نابلس": [
+    "نابلس", "بيت فوريك", "حوارة", "عصيرة الشمالية", "بيتا", "قصرة",
+    "عورتا", "سالم", "بلاطة", "سبسطية", "بيت إبا", "دير الحطب", "عزموط",
+    "طلوزة", "بورين", "عراق بورين", "جمّاعين", "عقربا", "روجيب", "مادما",
+    "تل", "بيت دجن", "فرعتا", "زواتا", "نصف جبيل", "قبلان", "ياتما",
+    "ينون", "دوما",
+  ],
+  "رام الله والبيرة": [
+    "رام الله", "البيرة", "بيرزيت", "بيتونيا", "عين يبرود", "ترمسعيا",
+    "سلواد", "دير جرير", "كفر مالك", "بيت ريما", "دير ابزيع", "النبي صالح",
+    "بيت سيرا", "بيت لقيا", "كوبر", "عابود", "المزرعة الشرقية", "نعلين",
+    "دير قديس", "شقبا", "رنتيس",
+  ],
+  "جنين": [
+    "جنين", "قباطية", "يعبد", "عرابة", "سيلة الحارثية", "كفر دان",
+    "زبابدة", "جبع", "سانور", "فقوعة", "اليامون", "برقين", "ميثلون",
+    "عانين", "دير أبو ضعيف", "فحمة", "جلقموس", "كفر قود", "رمانة",
+  ],
+  "طولكرم": [
+    "طولكرم", "عنبتا", "دير الغصون", "بلعا", "عتيل", "كفر اللبد",
+    "شويكة", "فرعون", "قفين", "زيتا", "رامين", "صيدا", "اكتابا",
+    "نزلة عيسى", "باقة الشرقية", "خدوري",
+  ],
+  "قلقيلية": [
+    "قلقيلية", "عزون", "جيوس", "حجة", "كفر ثلث", "حبلة", "جنصافوط",
+    "عزبة الطبيب", "رأس عطية", "الفندق", "سنيريا",
+  ],
+  "أريحا": ["أريحا", "العوجا", "الجفتلك", "فصايل", "دويك", "النويعمة"],
+  "الخليل": [
+    "الخليل", "يطا", "دورا", "حلحول", "سعير", "بيت أمر", "إذنا", "تفوح",
+    "بني نعيم", "السموع", "نوبا", "سريف", "ترقوميا", "الظاهرية",
+    "بيت كاحل", "دير سامت", "الفوار", "خرسا",
+  ],
+  "بيت لحم": [
+    "بيت لحم", "بيت جالا", "بيت ساحور", "الدوحة", "الخضر", "تقوع",
+    "الزعتري", "بيت فجار", "حوسان", "نحالين", "وادي فوكين", "مراح معلا",
+  ],
+  "طوباس": [
+    "طوباس", "تمّون", "عقابا", "بردلة", "عين البيضا", "الفارعة",
+    "وادي الفارعة", "طياسير", "كردلة",
+  ],
+};
+
+/* ── Cities / towns inside the Green Line (الداخل المحتل / 48) ──────────── */
+const CITIES_INSIDE_48 = [
+  "الناصرة", "حيفا", "يافا", "اللد", "الرملة", "عكا", "الطيبة", "الطيرة",
+  "أم الفحم", "سخنين", "عرابة", "شفاعمرو", "كفر قاسم", "كفركنا", "رهط",
+  "باقة الغربية", "طمرة", "دير الأسد", "البعنة", "مجد الكروم", "جت",
+  "كفر برا", "جلجولية", "طرعان", "عيلبون", "يركا", "جسر الزرقاء",
+  "الفريديس", "قلنسوة", "نحف", "كابول", "كفر مندا", "بئر السبع",
+  "تل السبع", "عرعرة النقب", "حورة", "اللقية", "شقيب السلام",
+];
+
+/* ── City options resolver ────────────────────────────────────────────────
+   Returns:
+   - an array of options when the region has a defined city list
+     (West Bank depends on the chosen governorate; inside-48 has its own list)
+   - null when the region has no predefined list (e.g. Jerusalem), meaning
+     the caller should fall back to a free-text input
+─────────────────────────────────────────────────────────────────────────── */
+const cityOptionsFor = (regionVal, governorateVal) => {
+  if (regionVal === "west_bank") {
+    return governorateVal ? (CITIES_BY_GOVERNORATE[governorateVal] ?? []) : [];
+  }
+  if (regionVal === "inside_48") return CITIES_INSIDE_48;
+  return null;
+};
+
+const OTHER_CITY_VALUE = "__other__";
+const resolveCity = (cityVal, otherVal) =>
+  cityVal === OTHER_CITY_VALUE ? otherVal : cityVal;
+
+/* ── Reusable city selector (select from list, with "other" fallback) ───── */
+function CitySelector({ region, governorate, city, cityOther, onCityChange, onCityOtherChange }) {
+  const opts = cityOptionsFor(region, governorate);
+
+  if (opts === null) {
+    return (
+      <div className="cs-field">
+        <input
+          className="cs-input"
+          placeholder="المدينة / البلدة *"
+          value={city}
+          onChange={(e) => onCityChange(e.target.value)}
+        />
+      </div>
+    );
+  }
+
+  const disabled = region === "west_bank" && !governorate;
+
+  return (
+    <>
+      <div className="cs-field">
+        <select
+          className="cs-select"
+          value={city}
+          onChange={(e) => onCityChange(e.target.value)}
+          disabled={disabled}
+        >
+          <option value="">
+            {disabled ? "اختر المحافظة أولاً" : "اختر المدينة / البلدة *"}
+          </option>
+          {opts.map((c) => (
+            <option key={c} value={c}>
+              {c}
+            </option>
+          ))}
+          <option value={OTHER_CITY_VALUE}>أخرى (غير مدرجة)</option>
+        </select>
+      </div>
+      {city === OTHER_CITY_VALUE && (
+        <div className="cs-field form-block">
+          <input
+            className="cs-input"
+            placeholder="اكتب اسم المدينة / البلدة *"
+            value={cityOther}
+            onChange={(e) => onCityOtherChange(e.target.value)}
+          />
+        </div>
+      )}
+    </>
+  );
+}
+
 /* ════════════════════════════════════════════════════════════════════════════
    MAIN COMPONENT
    ════════════════════════════════════════════════════════════════════════════ */
@@ -117,6 +249,7 @@ export default function Cart() {
   const [guestRegion, setGuestRegion] = useState("");
   const [guestGovernorate, setGuestGovernorate] = useState("");
   const [guestCity, setGuestCity] = useState("");
+  const [guestCityOther, setGuestCityOther] = useState("");
   const [guestStreet, setGuestStreet] = useState("");
   const [guestNotes, setGuestNotes] = useState("");
 
@@ -126,6 +259,7 @@ export default function Cart() {
   const [selectedAddrId, setSelectedAddrId] = useState(null);
   const [governorate, setGovernorate] = useState("");
   const [city, setCity] = useState("");
+  const [cityOther, setCityOther] = useState("");
   const [area, setArea] = useState("");
   const [street, setStreet] = useState("");
   const [addrNotes, setAddrNotes] = useState("");
@@ -246,11 +380,14 @@ export default function Cart() {
   const activeRegion = REGIONS.find(
     (r) => r.value === (isLoggedIn ? region : guestRegion),
   );
+  const effectiveCity = resolveCity(city, cityOther);
+  const effectiveGuestCity = resolveCity(guestCity, guestCityOther);
   const cityForShipping = isLoggedIn
     ? selectedAddrId && !editingAddr
-      ? user?.addresses?.find((a) => a._id === selectedAddrId)?.city ?? city
-      : city
-    : guestCity;
+      ? (user?.addresses?.find((a) => a._id === selectedAddrId)?.city ??
+        effectiveCity)
+      : effectiveCity
+    : effectiveGuestCity;
   const governorateForShipping = isLoggedIn
     ? selectedAddrId && !editingAddr
       ? (user?.addresses?.find((a) => a._id === selectedAddrId)
@@ -333,11 +470,11 @@ export default function Cart() {
       setError("يرجى اختيار المنطقة");
       return;
     }
-    if (!guestGovernorate) {
+    if (guestRegion === "west_bank" && !guestGovernorate) {
       setError("يرجى اختيار المحافظة");
       return;
     }
-    if (!guestCity.trim()) {
+    if (!effectiveGuestCity.trim()) {
       setError("يرجى إدخال المدينة / البلدة");
       return;
     }
@@ -353,8 +490,9 @@ export default function Cart() {
         body: JSON.stringify({
           guestName,
           guestPhone,
+          guestRegion: activeRegion?.label,
           guestGovernorate,
-          guestCity: `${activeRegion?.label} - ${guestGovernorate} - ${guestCity}`,
+          guestCity: effectiveGuestCity,
           guestStreet,
           notes: guestNotes,
           items: cart.map((item) => ({
@@ -404,18 +542,19 @@ export default function Cart() {
     let shippingAddress;
     if (selectedAddr && !editingAddr) {
       shippingAddress = {
+        region: activeRegion?.label ?? "",
         governorate: selectedAddr.governorate ?? "",
-        city: `${activeRegion?.label} - ${selectedAddr.city}`,
+        city: selectedAddr.city,
         area: selectedAddr.area ?? "",
         street: selectedAddr.street ?? "",
         notes: orderNotes,
       };
     } else {
-      if (!governorate) {
+      if (region === "west_bank" && !governorate) {
         setError("يرجى اختيار المحافظة");
         return;
       }
-      if (!city.trim()) {
+      if (!effectiveCity.trim()) {
         setError("يرجى إدخال المدينة");
         return;
       }
@@ -428,8 +567,9 @@ export default function Cart() {
         return;
       }
       shippingAddress = {
+        region: activeRegion?.label ?? "",
         governorate,
-        city: `${activeRegion?.label} - ${city}`,
+        city: effectiveCity,
         area,
         street,
         notes: orderNotes,
@@ -437,7 +577,7 @@ export default function Cart() {
     }
 
     const profileChanged =
-      phone !== (user?.phone ?? "") || (!selectedAddr && city.trim());
+      phone !== (user?.phone ?? "") || (!selectedAddr && effectiveCity.trim());
 
     const items = cart.map((item) => ({
       perfume: item.perfume._id,
@@ -468,7 +608,7 @@ export default function Cart() {
           promoCode: promoApplied ? promoCode : undefined,
           paymentMethod: "cash_on_delivery",
           updateProfile: profileChanged,
-          newAddress: !selectedAddr && city.trim() && saveAddr,
+          newAddress: !selectedAddr && effectiveCity.trim() && saveAddr,
           addressLabel: addrLabel,
           setAsDefault: !user?.addresses?.length,
         }),
@@ -912,7 +1052,12 @@ export default function Cart() {
                   <select
                     className="cs-select"
                     value={guestRegion}
-                    onChange={(e) => setGuestRegion(e.target.value)}
+                    onChange={(e) => {
+                      setGuestRegion(e.target.value);
+                      setGuestGovernorate("");
+                      setGuestCity("");
+                      setGuestCityOther("");
+                    }}
                   >
                     <option value="">اختر المنطقة *</option>
                     {REGIONS.map((r) => (
@@ -930,33 +1075,42 @@ export default function Cart() {
                     {shippingFee}
                   </div>
                 )}
-                {canApplySalfitRate(guestGovernorate, guestCity) && (
+                {canApplySalfitRate(guestGovernorate, effectiveGuestCity) && (
                   <div className="salfit-badge">
                     🎉 سلفيت · توصيل مجاني تقريباً — ₪5 فقط!
                   </div>
                 )}
-                <div className="cs-field">
-                  <select
-                    className="cs-select"
-                    value={guestGovernorate}
-                    onChange={(e) => setGuestGovernorate(e.target.value)}
-                  >
-                    <option value="">اختر المحافظة *</option>
-                    {WEST_BANK_GOVERNORATES.map((g) => (
-                      <option key={g} value={g}>
-                        {g}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div className="cs-field">
-                  <input
-                    className="cs-input"
-                    placeholder="المدينة / البلدة *"
-                    value={guestCity}
-                    onChange={(e) => setGuestCity(e.target.value)}
-                  />
-                </div>
+                {guestRegion === "west_bank" && (
+                  <div className="cs-field">
+                    <select
+                      className="cs-select"
+                      value={guestGovernorate}
+                      onChange={(e) => {
+                        setGuestGovernorate(e.target.value);
+                        setGuestCity("");
+                        setGuestCityOther("");
+                      }}
+                    >
+                      <option value="">اختر المحافظة *</option>
+                      {WEST_BANK_GOVERNORATES.map((g) => (
+                        <option key={g} value={g}>
+                          {g}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+                <CitySelector
+                  region={guestRegion}
+                  governorate={guestGovernorate}
+                  city={guestCity}
+                  cityOther={guestCityOther}
+                  onCityChange={(v) => {
+                    setGuestCity(v);
+                    setGuestCityOther("");
+                  }}
+                  onCityOtherChange={setGuestCityOther}
+                />
                 <div className="cs-field">
                   <input
                     className="cs-input"
@@ -1045,7 +1199,12 @@ export default function Cart() {
                   <select
                     className="cs-select"
                     value={region}
-                    onChange={(e) => setRegion(e.target.value)}
+                    onChange={(e) => {
+                      setRegion(e.target.value);
+                      setGovernorate("");
+                      setCity("");
+                      setCityOther("");
+                    }}
                   >
                     <option value="">اختر المنطقة *</option>
                     {REGIONS.map((r) => (
@@ -1067,7 +1226,9 @@ export default function Cart() {
                   editingAddr || !user?.addresses?.length
                     ? governorate
                     : (selectedAddr?.governorate ?? governorate),
-                  city,
+                  editingAddr || !user?.addresses?.length
+                    ? effectiveCity
+                    : (selectedAddr?.city ?? effectiveCity),
                 ) && (
                   <div className="salfit-badge">
                     🎉 سلفيت · توصيل مجاني تقريباً — ₪5 فقط!
@@ -1132,43 +1293,47 @@ export default function Cart() {
 
                 {(editingAddr || !user?.addresses?.length) && (
                   <div className="form-block">
+                    {region === "west_bank" && (
+                      <div className="cs-field">
+                        <span className="cs-small-label">المحافظة *</span>
+                        <select
+                          className="cs-select"
+                          value={governorate}
+                          onChange={(e) => {
+                            setGovernorate(e.target.value);
+                            setCity("");
+                            setCityOther("");
+                          }}
+                        >
+                          <option value="">اختر المحافظة *</option>
+                          {WEST_BANK_GOVERNORATES.map((g) => (
+                            <option key={g} value={g}>
+                              {g}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+                    <span className="cs-small-label">المدينة / البلدة *</span>
+                    <CitySelector
+                      region={region}
+                      governorate={governorate}
+                      city={city}
+                      cityOther={cityOther}
+                      onCityChange={(v) => {
+                        setCity(v);
+                        setCityOther("");
+                      }}
+                      onCityOtherChange={setCityOther}
+                    />
                     <div className="cs-field">
-                      <span className="cs-small-label">المحافظة *</span>
-                      <select
-                        className="cs-select"
-                        value={governorate}
-                        onChange={(e) => setGovernorate(e.target.value)}
-                      >
-                        <option value="">اختر المحافظة *</option>
-                        {WEST_BANK_GOVERNORATES.map((g) => (
-                          <option key={g} value={g}>
-                            {g}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                    <div
-                      className="cs-row-2"
-                      style={{ marginBottom: "0.5rem" }}
-                    >
-                      <div>
-                        <span className="cs-small-label">المدينة *</span>
-                        <input
-                          className="cs-input"
-                          placeholder="مثل: نابلس"
-                          value={city}
-                          onChange={(e) => setCity(e.target.value)}
-                        />
-                      </div>
-                      <div>
-                        <span className="cs-small-label">الحي / المنطقة *</span>
-                        <input
-                          className="cs-input"
-                          placeholder="مثل: المنطقة الشمالية"
-                          value={area}
-                          onChange={(e) => setArea(e.target.value)}
-                        />
-                      </div>
+                      <span className="cs-small-label">الحي / المنطقة *</span>
+                      <input
+                        className="cs-input"
+                        placeholder="مثل: المنطقة الشمالية"
+                        value={area}
+                        onChange={(e) => setArea(e.target.value)}
+                      />
                     </div>
                     <div className="cs-field">
                       <span className="cs-small-label">الشارع *</span>
